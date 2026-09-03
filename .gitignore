@@ -1,0 +1,26 @@
+# Global context: keep secrets, local environments, generated models, and run artifacts out of Git.
+# Source: https://git-scm.com/docs/gitignore
+.env
+.env.*
+!.env.example
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+logs/
+artifacts/
+checkpoints/
+.cache/
+.trackio/
+*.egg-info/
+dist/
+build/
+output/pdf/*.aux
+output/pdf/*.log
+output/pdf/*.out
+output/pdf/*.synctex.gz
+*:Zone.Identifier
