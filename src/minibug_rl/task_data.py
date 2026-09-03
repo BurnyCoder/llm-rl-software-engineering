@@ -1,0 +1,161 @@
+"""Global context: validate and load the frozen clean-room MiniBug curriculum.
+
+Sources:
+- https://docs.python.org/3/library/json.html
+- https://docs.python.org/3/library/ast.html
+- https://huggingface.co/docs/trl/main/en/dataset_formats
+"""
+
+from __future__ import annotations
+
+import ast
+import json
+from collections.abc import Iterable, Mapping, Sequence
+from pathlib import Path
+from typing import Any
+
+from minibug_rl.prompts import build_messages
+from minibug_rl.schemas import RepairTask, TestCase
+
+# Frozen split names prevent typographical variants from silently leaking evaluation data.
+_SPLITS = frozenset({"train", "validation", "test"})
+# Difficulty is deliberately descriptive rather than an unbounded numeric score.
+_DIFFICULTIES = frozenset({"easy", "medium", "hard"})
+
+
+class TaskDataError(ValueError):
+    """Identify malformed or leakage-prone curriculum data before training begins."""
+
+
+def _mapping(value: Any, label: str) -> Mapping[str, Any]:
+    """Require a JSON object at one schema location."""
+    # Precise labels make hand-authored task mistakes fast to locate.
+    if not isinstance(value, Mapping):
+        raise TaskDataError(f"{label} must be a JSON object")
+    return value
+
+
+def _string(value: Any, label: str) -> str:
+    """Require a non-empty string without normalizing meaningful task content."""
+    # Whitespace-only identifiers and descriptions are never useful evidence.
+    if not isinstance(value, str) or not value.strip():
+        raise TaskDataError(f"{label} must be a non-empty string")
+    return value
+
+
+def _test_case(raw: Any, label: str) -> TestCase:
+    """Validate one JSON-serializable call/expected record."""
+    item = _mapping(raw, label)
+    # Positional arguments must remain ordered arrays.
+    args = item.get("args")
+    if not isinstance(args, list):
+        raise TaskDataError(f"{label}.args must be a JSON array")
+    # Keyword arguments must remain named JSON objects.
+    kwargs = item.get("kwargs")
+    if not isinstance(kwargs, dict) or not all(isinstance(key, str) for key in kwargs):
+        raise TaskDataError(f"{label}.kwargs must be an object with string keys")
+    # Presence is different from a null expected value, which is a valid result.
+    if "expected" not in item:
+        raise TaskDataError(f"{label}.expected is required")
+    return TestCase(tuple(args), dict(kwargs), item["expected"])
+
+
+def _cases(raw: Any, label: str, minimum: int, maximum: int) -> tuple[TestCase, ...]:
+    """Validate a bounded sequence of public or hidden function calls."""
+    # Strings are sequences but cannot represent a list of structured test cases.
+    if not isinstance(raw, Sequence) or isinstance(raw, (str, bytes)):
+        raise TaskDataError(f"{label} must be a JSON array")
+    if not minimum <= len(raw) <= maximum:
+        raise TaskDataError(f"{label} must contain between {minimum} and {maximum} cases")
+    return tuple(_test_case(case, f"{label}[{index}]") for index, case in enumerate(raw))
+
+
+def _validate_buggy_function(code: str, function_name: str, label: str) -> None:
+    """Require one import-free function with the public task name."""
+    try:
+        tree = ast.parse(code, mode="exec")
+    except SyntaxError as error:
+        raise TaskDataError(f"{label}.buggy_code is invalid Python: {error.msg}") from error
+    # The prompt contract presents one replacement unit rather than a whole module.
+    if len(tree.body) != 1 or not isinstance(tree.body[0], ast.FunctionDef):
+        raise TaskDataError(f"{label}.buggy_code must contain one top-level function")
+    if tree.body[0].name != function_name:
+        raise TaskDataError(f"{label}.buggy_code must define {function_name!r}")
+    if any(isinstance(node, (ast.Import, ast.ImportFrom)) for node in ast.walk(tree)):
+        raise TaskDataError(f"{label}.buggy_code must not contain imports")
+
+
+def _repair_task(raw: Any, index: int) -> RepairTask:
+    """Convert one checked JSON object into an immutable domain task."""
+    label = f"tasks[{index}]"
+    item = _mapping(raw, label)
+    task_id = _string(item.get("id"), f"{label}.id")
+    split = _string(item.get("split"), f"{label}.split")
+    if split not in _SPLITS:
+        raise TaskDataError(f"{label}.split must be one of {sorted(_SPLITS)}")
+    difficulty = _string(item.get("difficulty"), f"{label}.difficulty")
+    if difficulty not in _DIFFICULTIES:
+        raise TaskDataError(f"{label}.difficulty must be one of {sorted(_DIFFICULTIES)}")
+    function_name = _string(item.get("function_name"), f"{label}.function_name")
+    buggy_code = _string(item.get("buggy_code"), f"{label}.buggy_code")
+    _validate_buggy_function(buggy_code, function_name, label)
+    return RepairTask(
+        id=task_id,
+        split=split,
+        family=_string(item.get("family"), f"{label}.family"),
+        difficulty=difficulty,
+        specification=_string(item.get("specification"), f"{label}.specification"),
+        function_name=function_name,
+        buggy_code=buggy_code,
+        public_tests=_cases(item.get("public_tests"), f"{label}.public_tests", 2, 2),
+        hidden_tests=_cases(item.get("hidden_tests"), f"{label}.hidden_tests", 4, 8),
+    )
+
+
+def load_tasks(path: str | Path) -> tuple[RepairTask, ...]:
+    """Load and validate the complete curriculum from one versioned JSON file."""
+    task_path = Path(path).expanduser().resolve()
+    try:
+        raw = json.loads(task_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise TaskDataError(f"Cannot load task file {task_path}: {error}") from error
+    if not isinstance(raw, list) or not raw:
+        raise TaskDataError("Task file must contain a non-empty JSON array")
+    tasks = tuple(_repair_task(item, index) for index, item in enumerate(raw))
+    identifiers = [task.id for task in tasks]
+    if len(identifiers) != len(set(identifiers)):
+        raise TaskDataError("Duplicate task IDs are prohibited")
+    return tasks
+
+
+def tasks_for_split(tasks: Iterable[RepairTask], split: str) -> tuple[RepairTask, ...]:
+    """Select one frozen split without changing task order."""
+    if split not in _SPLITS:
+        raise TaskDataError(f"Unknown split {split!r}")
+    return tuple(task for task in tasks if task.split == split)
+
+
+def _case_dict(case: TestCase) -> dict[str, Any]:
+    """Serialize a test case for the reward-only dataset column."""
+    # Expected values remain outside the model-visible prompt object.
+    return {"args": list(case.args), "kwargs": case.kwargs, "expected": case.expected}
+
+
+def training_rows(tasks: Iterable[RepairTask]) -> list[dict[str, Any]]:
+    """Build TRL conversational prompt rows with reward metadata in separate columns."""
+    rows: list[dict[str, Any]] = []
+    for task in tasks:
+        rows.append(
+            {
+                "prompt": build_messages(task),
+                "task_id": task.id,
+                "split": task.split,
+                "function_name": task.function_name,
+                "hidden_tests_json": json.dumps(
+                    [_case_dict(case) for case in task.hidden_tests],
+                    separators=(",", ":"),
+                    ensure_ascii=False,
+                ),
+            }
+        )
+    return rows
