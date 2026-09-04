@@ -1,10 +1,10 @@
 """Global context: load pinned tokenizer/model objects for training, evaluation, and export.
 
 Sources:
-- https://huggingface.co/Qwen/Qwen2.5-Coder-0.5B-Instruct
-- https://huggingface.co/docs/transformers/main/en/main_classes/model#transformers.PreTrainedModel.from_pretrained
-- https://huggingface.co/docs/transformers/attention_interface
-- https://huggingface.co/docs/peft/package_reference/peft_model
+- https://huggingface.co/Qwen/Qwen2.5-Coder-0.5B-Instruct/blob/ea3f2471cf1b1f0db85067f1ef93848e38e88c25/README.md
+- https://github.com/huggingface/transformers/blob/v5.16.1/src/transformers/modeling_utils.py
+- https://github.com/huggingface/transformers/blob/v5.16.1/src/transformers/integrations/sdpa_attention.py
+- https://huggingface.co/docs/peft/v0.20.0/package_reference/peft_model
 """
 
 from __future__ import annotations

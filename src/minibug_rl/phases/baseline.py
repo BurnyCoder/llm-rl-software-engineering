@@ -1,6 +1,6 @@
 """Global context: measure untouched base validation behavior before any RL update.
 
-Source: https://huggingface.co/docs/transformers/main/en/main_classes/text_generation
+Source: https://github.com/huggingface/transformers/blob/v5.16.1/src/transformers/generation/utils.py
 """
 
 from __future__ import annotations
@@ -12,7 +12,7 @@ from minibug_rl.evaluation import evaluate_internal
 
 
 def run_baseline(context: PipelineContext) -> dict[str, Any]:
-    """Evaluate the pinned base only on validation, preserving final-test blindness."""
+    """Evaluate the pinned base only on validation without using final model outcomes."""
     context.logger.message("phase_start", "Evaluating the untouched base model.", phase="baseline")
     result = evaluate_internal(
         context.config,

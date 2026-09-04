@@ -1,7 +1,7 @@
-"""Global context: select on validation, then open final test once for paired comparison.
+"""Global context: select on validation, then score each final benchmark once.
 
 Sources:
-- https://en.wikipedia.org/wiki/Training,_validation,_and_test_data_sets
+- https://www.deeplearningbook.org/contents/ml.html
 - https://docs.python.org/3/library/statistics.html
 """
 
@@ -17,6 +17,7 @@ from minibug_rl.external_evaluation import evaluate_external, external_result_is
 from minibug_rl.metrics import paired_bootstrap_interval
 from minibug_rl.run_logging import utc_timestamp
 from minibug_rl.sandbox import DEFAULT_TIMEOUT_SECONDS
+from minibug_rl.task_data import load_tasks, tasks_for_split
 
 
 def _selection_key(result: dict[str, Any]) -> tuple[float, float]:
@@ -48,6 +49,9 @@ def _evaluate_final_once(
         scores = loaded.get("task_scores") if isinstance(loaded, dict) else None
         if not isinstance(summary, dict) or not isinstance(scores, dict):
             raise ValueError(f"Saved final-test result {result_path} is malformed")
+        test_tasks = tasks_for_split(load_tasks(context.config.project.data_file), "test")
+        expected_task_ids = {task.id for task in test_tasks}
+        expected_task_count = len(test_tasks)
         expected_model = (
             str(adapter_path) if adapter_path is not None else context.config.model.base_model
         )
@@ -58,8 +62,9 @@ def _evaluate_final_once(
             and summary.get("base_revision") == context.config.model.revision
             and summary.get("sandbox_image") == context.prepared_sandbox_image()
             and summary.get("sampled_k") == context.config.evaluation.sample_generations
-            and summary.get("tasks") == 12
-            and len(scores) == 12
+            and summary.get("tasks") == expected_task_count
+            and len(scores) == expected_task_count
+            and set(scores) == expected_task_ids
         )
         if reusable:
             context.logger.message(
@@ -130,7 +135,7 @@ def _evaluate_external_once(
 
 
 def run_evaluate(context: PipelineContext) -> dict[str, Any]:
-    """Choose smoke/main adapter on validation and compare the winner on untouched test."""
+    """Choose on validation and compare the winner on decision-isolated final tasks."""
     logger = context.logger
     logger.message("phase_start", "Selecting and evaluating trained adapters.", phase="evaluate")
     if "baseline" not in context.state:

@@ -1,9 +1,9 @@
 """Global context: verify local GPU, Docker, Hub identity, and pinned model generation.
 
 Sources:
-- https://pytorch.org/docs/stable/notes/cuda.html
-- https://huggingface.co/docs/huggingface_hub/package_reference/hf_api
-- https://huggingface.co/docs/transformers/main/en/main_classes/text_generation
+- https://docs.pytorch.org/docs/2.14/notes/cuda.html
+- https://huggingface.co/docs/huggingface_hub/v1.30.0/en/package_reference/hf_api
+- https://github.com/huggingface/transformers/blob/v5.16.1/src/transformers/generation/utils.py
 """
 
 from __future__ import annotations

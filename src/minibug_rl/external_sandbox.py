@@ -1,4 +1,4 @@
-"""Global context: execute HumanEvalFix assertions only inside hardened Docker.
+"""Global context: execute HumanEvalFix assertions in resource-limited isolated Docker.
 
 The adapter supplies a typed candidate-and-test payload, while this module assigns
 evaluation meaning to the shared JSON container transport. No benchmark or generated
@@ -6,7 +6,7 @@ Python is compiled, imported, or executed by the host process.
 
 Sources:
 - https://docs.docker.com/reference/cli/docker/container/run/
-- https://docs.python.org/3/library/subprocess.html#subprocess.Popen.communicate
+- https://docs.python.org/3.12/library/subprocess.html#subprocess.Popen.communicate
 - https://github.com/bigcode-project/bigcode-evaluation-harness/blob/8fc5bae6479c4fbbb28c3f8b644f6a15b3f3b5bd/bigcode_eval/tasks/humanevalpack.py
 """
 
@@ -57,7 +57,7 @@ def _response_text(value: object, fallback: str) -> str:
 
 @dataclass(frozen=True, slots=True)
 class DockerPythonTestSandbox:
-    """Run one candidate plus hidden Python assertion script in a fresh container."""
+    """Validate a request, then run accepted candidate and assertions in a fresh container."""
 
     # The same locally built immutable image supports both MiniBug and external tests.
     image: str = DEFAULT_IMAGE

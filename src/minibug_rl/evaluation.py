@@ -1,9 +1,9 @@
-"""Global context: run identical container-scored inference for base and adapted policies.
+"""Global context: run identical reward-scored inference for base and adapted policies.
 
 Sources:
-- https://huggingface.co/docs/transformers/main/en/main_classes/text_generation
+- https://github.com/huggingface/transformers/blob/v5.16.1/src/transformers/generation/utils.py
 - https://arxiv.org/abs/2107.03374
-- https://pytorch.org/docs/stable/generated/torch.inference_mode.html
+- https://github.com/pytorch/pytorch/blob/2b3ec34829036a65cd9d1398ea72a0167dc37470/torch/autograd/grad_mode.py
 """
 
 from __future__ import annotations
@@ -130,13 +130,39 @@ def evaluate_internal(
         )
         candidates.extend(("sampled", index, text) for index, text in enumerate(sampled))
         for mode, sample_index, completion in candidates:
-            breakdown, cache_hit = reward_cache.score(
-                task.id,
-                completion,
-                task.function_name,
-                task.hidden_tests,
-                executor,
+            # Raw text must be durable before parsing, cache lookup, or Docker execution.
+            generation_id = logger.generation(
+                task_id=task.id,
+                split=split,
+                prompt=prompt,
+                completion=completion,
+                metadata={
+                    "evaluation": label,
+                    "mode": mode,
+                    "sample_index": sample_index,
+                },
             )
+            try:
+                breakdown, cache_hit = reward_cache.score(
+                    task.id,
+                    completion,
+                    task.function_name,
+                    task.hidden_tests,
+                    executor,
+                )
+            except Exception as error:
+                logger.generation_outcome(
+                    generation_id=generation_id,
+                    task_id=task.id,
+                    split=split,
+                    metadata={
+                        "evaluation": label,
+                        "status": "exception",
+                        "exception_type": type(error).__name__,
+                        "error": str(error),
+                    },
+                )
+                raise
             record = EvaluationRecord(
                 task.id,
                 mode,
@@ -153,11 +179,10 @@ def evaluate_internal(
                 "cache_hit": cache_hit,
             }
             detailed.append(evidence)
-            logger.generation(
+            logger.generation_outcome(
+                generation_id=generation_id,
                 task_id=task.id,
                 split=split,
-                prompt=prompt,
-                completion=completion,
                 metadata={"evaluation": label, **evidence},
             )
     summary: dict[str, Any] = dict(aggregate_records(records, selected_k))

@@ -1,7 +1,7 @@
 """Global context: prove checkpoint selection remains validation-only and test-blind.
 
 Sources:
-- https://en.wikipedia.org/wiki/Training,_validation,_and_test_data_sets
+- https://www.deeplearningbook.org/contents/ml.html
 - https://docs.python.org/3/library/unittest.mock.html
 """
 
@@ -24,6 +24,7 @@ from minibug_rl.external_eval import (
 from minibug_rl.phases import evaluate as evaluate_phase
 from minibug_rl.run_logging import RunLogger
 from minibug_rl.sandbox import DEFAULT_TIMEOUT_SECONDS
+from minibug_rl.task_data import load_tasks, tasks_for_split
 
 # Phase tests use one valid immutable digest without contacting Docker.
 SANDBOX_IMAGE = "sha256:" + "d" * 64
@@ -35,13 +36,15 @@ def _result(
     solved: float,
     *,
     model: str = "Qwen/Qwen2.5-Coder-0.5B-Instruct",
+    task_ids: list[str] | None = None,
 ) -> dict[str, Any]:
     """Build the smallest structurally valid evaluation result for phase tests."""
+    selected_ids = task_ids if task_ids is not None else [f"task-{index}" for index in range(12)]
     return {
         "summary": {
             "label": label,
             "model": model,
-            "tasks": 12,
+            "tasks": len(selected_ids),
             "greedy_hidden_test_fraction": fraction,
             "greedy_pass_at_1": solved,
             "invalid_structure_rate": 0.0,
@@ -49,9 +52,15 @@ def _result(
             "runtime_error_rate": 0.0,
             "policy_violation_rate": 0.0,
         },
-        "task_scores": {f"task-{index}": fraction for index in range(12)},
+        "task_scores": {task_id: fraction for task_id in selected_ids},
         "records": [],
     }
+
+
+def _configured_test_ids(context: PipelineContext) -> list[str]:
+    """Read the exact final-task identity set that resumability must preserve."""
+    tasks = load_tasks(context.config.project.data_file)
+    return [task.id for task in tasks_for_split(tasks, "test")]
 
 
 def _external_result(
@@ -157,6 +166,7 @@ def test_evaluate_selects_on_validation_before_opening_final_test(
             fractions[label],
             float(label == "selected-test-final") / 12,
             model=model,
+            task_ids=_configured_test_ids(context) if split == "test" else None,
         )
         path = context.logger.directory / f"evaluation-{label}.json"
         path.write_text(json.dumps(result), encoding="utf-8")
@@ -223,7 +233,12 @@ def test_final_test_result_file_is_reused_after_interruption(
 ) -> None:
     """Do not regenerate a completed final-test side after a later-side crash."""
     context = _context(tmp_path)
-    completed_base = _result("base-test-final", 0.20, 0.0)
+    completed_base = _result(
+        "base-test-final",
+        0.20,
+        0.0,
+        task_ids=_configured_test_ids(context),
+    )
     completed_base["summary"].update(
         {
             "split": "test",
@@ -262,7 +277,13 @@ def test_final_test_result_file_is_reused_after_interruption(
             test_calls.append(label)
         fraction = 0.40 if label.startswith("train") else 0.30
         model = context.config.model.base_model if adapter_path is None else str(adapter_path)
-        result = _result(label, fraction, 0.0, model=model)
+        result = _result(
+            label,
+            fraction,
+            0.0,
+            model=model,
+            task_ids=_configured_test_ids(context) if split == "test" else None,
+        )
         output = context.logger.directory / f"evaluation-{label}.json"
         output.write_text(json.dumps(result), encoding="utf-8")
         return result
@@ -295,6 +316,54 @@ def test_final_test_result_file_is_reused_after_interruption(
     assert external_calls == ["selected-humanevalfix"]
     assert context.state["evaluate"]["base_test"] == completed_base
     assert context.state["evaluate"]["external_base"] == completed_external
+    context.logger.close()
+
+
+def test_final_test_result_with_wrong_same_count_ids_is_stale_and_recomputed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Reject stale evidence whose score count matches but task identities do not."""
+    context = _context(tmp_path)
+    wrong_ids = _configured_test_ids(context)
+    wrong_ids[-1] = "stale-test-task-with-the-right-count"
+    stale = _result("base-test-final", 0.20, 0.0, task_ids=wrong_ids)
+    stale["summary"].update(
+        {
+            "split": "test",
+            "base_revision": context.config.model.revision,
+            "sandbox_image": SANDBOX_IMAGE,
+            "sampled_k": context.config.evaluation.sample_generations,
+        }
+    )
+    result_path = context.logger.directory / "evaluation-base-test-final.json"
+    result_path.write_text(json.dumps(stale), encoding="utf-8")
+    calls: list[str] = []
+
+    def fake_evaluate(
+        _config: Any,
+        _logger: Any,
+        *,
+        split: str,
+        label: str,
+        sandbox_image: str,
+        adapter_path: str | Path | None = None,
+        sampled_k: int | None = None,
+    ) -> dict[str, Any]:
+        """Return fresh evidence after exact configured task validation rejects the file."""
+        del adapter_path, sampled_k
+        assert split == "test"
+        assert sandbox_image == SANDBOX_IMAGE
+        calls.append(label)
+        return {"fresh": True}
+
+    monkeypatch.setattr(evaluate_phase, "evaluate_internal", fake_evaluate)
+
+    result = evaluate_phase._evaluate_final_once(context, label="base-test-final")
+
+    assert result == {"fresh": True}
+    assert calls == ["base-test-final"]
+    assert list(context.logger.directory.glob("evaluation-base-test-final.stale-*.json"))
     context.logger.close()
 
 

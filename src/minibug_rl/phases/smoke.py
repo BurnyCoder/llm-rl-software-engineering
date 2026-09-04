@@ -1,6 +1,6 @@
 """Global context: run a two-step GRPO gate before allocating the main experiment.
 
-Source: https://huggingface.co/docs/trl/grpo_trainer
+Source: https://github.com/huggingface/trl/blob/v1.12.0/trl/trainer/grpo_trainer.py
 """
 
 from __future__ import annotations

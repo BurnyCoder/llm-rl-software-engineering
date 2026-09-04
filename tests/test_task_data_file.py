@@ -49,7 +49,7 @@ TASK_FIELDS = {
 }
 # Test cases cross the sandbox boundary using only these three documented fields.
 CASE_FIELDS = {"args", "kwargs", "expected"}
-# These frozen counts implement the pre-registered 60-task split.
+# These frozen counts implement the source-committed 60-task split.
 EXPECTED_COUNTS = {"train": 36, "validation": 12, "test": 12}
 
 
@@ -137,6 +137,18 @@ class TaskDataFileTests(unittest.TestCase):
                         self.assertIsInstance(case["kwargs"], dict)
                         # Reject NaN and Infinity because strict JSON transports cannot use them.
                         json.dumps(case, allow_nan=False)
+                # Canonical JSON makes object-key order irrelevant when comparing case records.
+                public_cases = {
+                    json.dumps(case, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+                    for case in task["public_tests"]
+                }
+                # A model-visible example must not exactly disclose a hidden reward case.
+                hidden_cases = {
+                    json.dumps(case, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+                    for case in task["hidden_tests"]
+                }
+                # Exact overlap would make part of the nominally hidden suite prompt-visible.
+                self.assertTrue(public_cases.isdisjoint(hidden_cases))
 
     def test_ids_are_unique(self) -> None:
         """Ensure every task can be addressed by one unambiguous identifier."""

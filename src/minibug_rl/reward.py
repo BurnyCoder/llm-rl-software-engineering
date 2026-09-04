@@ -1,7 +1,7 @@
 """Global context: correctness-first reward shared by GRPO training and evaluation.
 
 Sources:
-- https://huggingface.co/docs/trl/main/en/grpo_trainer#using-a-custom-reward-function
+- https://github.com/huggingface/trl/blob/v1.12.0/trl/trainer/grpo_trainer.py
 - https://arxiv.org/abs/2605.30478
 """
 
@@ -130,28 +130,52 @@ def build_grpo_reward(
         columns = (task_id, function_name, hidden_tests_json)
         if any(len(column) != count for column in columns):
             raise ValueError("TRL reward columns are not aligned with completions")
-        aligned_prompts = prompts if prompts is not None else ["<prompt unavailable>"] * count
+        if prompts is None:
+            # Pinned TRL supplies raw prompts; accepting absence would fabricate the audit log.
+            raise ValueError("TRL prompts are required for complete generation logging")
+        aligned_prompts = prompts
         aligned_splits = split if split is not None else ["train"] * count
         if len(aligned_prompts) != count or len(aligned_splits) != count:
             raise ValueError("TRL prompt/split columns are not aligned with completions")
         rewards: list[float | None] = []
         for index, completion in enumerate(completions):
-            breakdown, cache_hit = selected_cache.score(
-                task_id[index],
-                completion,
-                function_name[index],
-                _hidden_cases(hidden_tests_json[index]),
-                executor,
-            )
-            # Expected outputs are intentionally absent from the generation metadata.
-            metadata = asdict(breakdown)
-            metadata["reward"] = breakdown.total
-            metadata["cache_hit"] = cache_hit
-            logger.generation(
+            # Persist raw model I/O before hidden-case parsing, cache lookup, or scoring.
+            generation_id = logger.generation(
                 task_id=task_id[index],
                 split=aligned_splits[index],
                 prompt=aligned_prompts[index],
                 completion=completion,
+                metadata={"reward_function": "hidden_unit_test_reward"},
+            )
+            try:
+                breakdown, cache_hit = selected_cache.score(
+                    task_id[index],
+                    completion,
+                    function_name[index],
+                    _hidden_cases(hidden_tests_json[index]),
+                    executor,
+                )
+            except Exception as error:
+                # Preserve a linked terminal state before invalid infrastructure aborts.
+                logger.generation_outcome(
+                    generation_id=generation_id,
+                    task_id=task_id[index],
+                    split=aligned_splits[index],
+                    metadata={
+                        "status": "exception",
+                        "exception_type": type(error).__name__,
+                        "error": str(error),
+                    },
+                )
+                raise
+            # Expected outputs are intentionally absent from the outcome metadata.
+            metadata = asdict(breakdown)
+            metadata["reward"] = breakdown.total
+            metadata["cache_hit"] = cache_hit
+            logger.generation_outcome(
+                generation_id=generation_id,
+                task_id=task_id[index],
+                split=aligned_splits[index],
                 metadata=metadata,
             )
             rewards.append(breakdown.total)

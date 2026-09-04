@@ -1,8 +1,8 @@
 """Global context: verify frozen task loading and model-visible prompt boundaries.
 
 Sources:
-- https://huggingface.co/docs/trl/main/en/dataset_formats
-- https://huggingface.co/docs/transformers/main/en/chat_templating
+- https://github.com/huggingface/trl/blob/v1.12.0/trl/trainer/utils.py
+- https://github.com/huggingface/transformers/blob/v5.16.1/src/transformers/tokenization_utils_base.py
 """
 
 import json

@@ -1,7 +1,8 @@
 """Global context: timestamped terminal and append-only run evidence for every phase.
 
 Sources:
-- https://docs.python.org/3/library/logging.html
+- https://docs.python.org/3.12/library/logging.html
+- https://docs.python.org/3.12/library/uuid.html#uuid.uuid4
 - https://jsonlines.org/
 """
 
@@ -11,6 +12,7 @@ import csv
 import json
 import sys
 import threading
+import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, TextIO
@@ -76,8 +78,9 @@ class RunLogger:
         record = self._record(event, {"message": message, **metadata})
         line = json.dumps(record, ensure_ascii=False, default=_json_default)
         with self._lock:
-            print(line, file=self._terminal, flush=True)
+            # Durable lifecycle evidence precedes the fallible terminal mirror.
             print(line, file=self._run_file, flush=True)
+            print(line, file=self._terminal, flush=True)
 
     def generation(
         self,
@@ -87,12 +90,15 @@ class RunLogger:
         prompt: Any,
         completion: Any,
         metadata: dict[str, Any] | None = None,
-    ) -> None:
-        """Persist and print an entire model prompt/completion pair without truncation."""
+    ) -> str:
+        """Persist complete raw text before scoring and return its stable audit ID."""
+        # A random UUID remains unique when resumed processes append to the same run.
+        generation_id = uuid.uuid4().hex
         # Do not slice or abbreviate either field: this file is the reproducibility record.
         record = self._record(
             "generation",
             {
+                "generation_id": generation_id,
                 "task_id": task_id,
                 "split": split,
                 "prompt": prompt,
@@ -102,7 +108,10 @@ class RunLogger:
         )
         line = json.dumps(record, ensure_ascii=False, default=_json_default)
         with self._lock:
-            # Print raw fields so terminal viewers see every original newline and character.
+            # Durable files receive the raw record before a terminal-stream failure can abort.
+            print(line, file=self._generation_file, flush=True)
+            print(line, file=self._run_file, flush=True)
+            # Mirror raw fields so terminal viewers see every original newline and character.
             print(
                 f"[{record['timestamp']}] generation task={task_id} split={split}\n"
                 f"--- PROMPT (complete) ---\n{prompt}\n"
@@ -111,8 +120,33 @@ class RunLogger:
                 file=self._terminal,
                 flush=True,
             )
-            print(line, file=self._run_file, flush=True)
+        return generation_id
+
+    def generation_outcome(
+        self,
+        *,
+        generation_id: str,
+        task_id: str,
+        split: str,
+        metadata: dict[str, Any],
+    ) -> None:
+        """Append scoring evidence linked to one already-persisted raw generation."""
+        # Keeping outcomes separate proves that raw text reached the audit trail first.
+        record = self._record(
+            "generation_outcome",
+            {
+                "generation_id": generation_id,
+                "task_id": task_id,
+                "split": split,
+                "metadata": metadata,
+            },
+        )
+        line = json.dumps(record, ensure_ascii=False, default=_json_default)
+        with self._lock:
+            # Persist the linked outcome before mirroring it to a fallible terminal stream.
             print(line, file=self._generation_file, flush=True)
+            print(line, file=self._run_file, flush=True)
+            print(line, file=self._terminal, flush=True)
 
     def metric(self, step: int, **values: float | int) -> None:
         """Append a numerical metric snapshot to JSONL and a convenient CSV projection."""

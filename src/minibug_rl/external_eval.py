@@ -7,7 +7,7 @@ protocol instead of MiniBug-RL's JSON function-call protocol.
 
 Primary sources:
 - https://huggingface.co/datasets/bigcode/humanevalpack/blob/9a41762f73a8cb23bb5811b73d5aab164efcf378/README.md
-- https://huggingface.co/docs/datasets/loading#hugging-face-hub
+- https://github.com/huggingface/datasets/blob/5.0.1/src/datasets/load.py
 - https://github.com/bigcode-project/bigcode-evaluation-harness/blob/8fc5bae6479c4fbbb28c3f8b644f6a15b3f3b5bd/bigcode_eval/tasks/humanevalpack.py
 """
 

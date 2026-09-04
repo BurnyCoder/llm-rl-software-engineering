@@ -1,16 +1,22 @@
 """Global context: verify the exact current TRL configuration before GPU allocation.
 
-Source: https://huggingface.co/docs/trl/grpo_trainer
+Sources:
+- https://github.com/huggingface/trl/blob/v1.12.0/trl/trainer/grpo_trainer.py
+- https://docs.python.org/3.12/library/math.html#math.isfinite
 """
 
+import json
 from pathlib import Path
 from types import SimpleNamespace
+
+import pytest
 
 from minibug_rl.config import load_run_config
 from minibug_rl.run_logging import RunLogger
 from minibug_rl.training import (
     AuditCallback,
     NonNullTrackioCallback,
+    _require_finite_training_evidence,
     build_grpo_config,
     build_lora_config,
 )
@@ -73,6 +79,76 @@ def test_audit_callback_stops_and_retains_reward_collapse_state(tmp_path: Path) 
     assert callback.stopped_for_reward_collapse is True
     assert control.should_training_stop is True
     logger.close()
+
+
+def test_audit_callback_stops_without_serializing_non_finite_metrics(tmp_path: Path) -> None:
+    """Retain metric names as valid JSON while excluding NaN and infinity values."""
+    # A real logger proves both the durable diagnostic and metrics stream stay parseable.
+    logger = RunLogger.create(tmp_path, run_id="non-finite-callback")
+    callback = AuditCallback(logger)
+    state = SimpleNamespace(global_step=7)
+    control = SimpleNamespace(should_training_stop=False)
+
+    # One finite sibling proves useful metrics remain available when bad values are filtered.
+    callback.on_log(
+        SimpleNamespace(),
+        state,
+        control,
+        logs={"loss": float("nan"), "reward": float("inf"), "learning_rate": 1e-5},
+    )
+    logger.close()
+
+    assert callback.stopped_for_non_finite_metrics is True
+    assert callback.non_finite_metric_names == ["loss", "reward"]
+    assert control.should_training_stop is True
+    # The event contains only string names, so standard JSON never receives NaN or Infinity.
+    run_records = [
+        json.loads(line)
+        for line in (logger.directory / "run.log").read_text(encoding="utf-8").splitlines()
+    ]
+    assert run_records == [
+        {
+            "timestamp": run_records[0]["timestamp"],
+            "event": "non_finite_training_metric",
+            "message": "Stopping because trainer metrics contained non-finite values.",
+            "step": 7,
+            "metric_names": ["loss", "reward"],
+        }
+    ]
+    metric_text = (logger.directory / "metrics.jsonl").read_text(encoding="utf-8")
+    assert "NaN" not in metric_text
+    assert "Infinity" not in metric_text
+    assert json.loads(metric_text)["learning_rate"] == pytest.approx(1e-5)
+
+
+@pytest.mark.parametrize(
+    ("history", "training_loss", "adapter_delta_l2", "field"),
+    [
+        ([{"loss": float("nan")}], 0.1, 1.0, "history[0].loss"),
+        ([{"reward": float("inf")}], 0.1, 1.0, "history[0].reward"),
+        ([{"loss": 0.1}], float("-inf"), 1.0, "training_loss"),
+        ([{"loss": 0.1}], 0.1, float("nan"), "adapter_delta_l2"),
+    ],
+)
+def test_post_train_finite_guard_rejects_every_non_finite_source(
+    history: list[dict[str, float]],
+    training_loss: float,
+    adapter_delta_l2: float,
+    field: str,
+) -> None:
+    """Block corrupt trainer evidence and adapter updates before final artifact saving."""
+    with pytest.raises(RuntimeError, match="non-finite") as error:
+        _require_finite_training_evidence(history, training_loss, adapter_delta_l2)
+    assert field in str(error.value)
+
+
+def test_post_train_finite_guard_accepts_finite_numeric_history() -> None:
+    """Allow ordinary finite metrics, including integral step counters and booleans."""
+    _require_finite_training_evidence(
+        [{"loss": 0.25, "epoch": 1, "is_final": True, "label": "train"}],
+        0.25,
+        1.5,
+    )
 
 
 def test_trackio_callback_drops_none_without_losing_defined_metrics() -> None:

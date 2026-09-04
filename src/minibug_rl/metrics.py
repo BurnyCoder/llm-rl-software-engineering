@@ -2,7 +2,7 @@
 
 Sources:
 - https://arxiv.org/abs/2107.03374
-- https://docs.python.org/3/library/random.html
+- https://docs.python.org/3.12/library/random.html
 """
 
 from __future__ import annotations
@@ -53,7 +53,7 @@ def aggregate_records(records: list[EvaluationRecord], sampled_k: int) -> dict[s
         for task_id in task_ids
     ):
         raise ValueError("Evaluation requires exactly one greedy record per task")
-    # Group sampled candidates so pass@k means at least one observed full repair per task.
+    # Group draws so observed sampled success means at least one recorded repair per task.
     sampled_by_task: dict[str, list[EvaluationRecord]] = defaultdict(list)
     for record in sampled:
         sampled_by_task[record.task_id].append(record)
@@ -72,7 +72,7 @@ def aggregate_records(records: list[EvaluationRecord], sampled_k: int) -> dict[s
     summary: dict[str, float | int] = {
         "tasks": len(task_ids),
         "greedy_pass_at_1": mean(float(record.solved) for record in greedy),
-        f"sampled_pass_at_{sampled_k}": mean(
+        f"observed_sampled_success_at_{sampled_k}": mean(
             float(any(record.solved for record in sampled_by_task[task_id])) for task_id in task_ids
         ),
         "greedy_hidden_test_fraction": mean(record.hidden_fraction for record in greedy),

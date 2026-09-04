@@ -2,7 +2,7 @@
 
 Sources:
 - https://docs.python.org/3/library/tomllib.html
-- https://huggingface.co/docs/trl/main/en/grpo_trainer
+- https://github.com/huggingface/trl/blob/v1.12.0/trl/trainer/grpo_trainer.py
 """
 
 from __future__ import annotations

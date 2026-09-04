@@ -1,6 +1,6 @@
 """Global context: turn a selected adapter into local portable model artifacts.
 
-Source: https://huggingface.co/docs/peft/package_reference/peft_model
+Source: https://huggingface.co/docs/peft/v0.20.0/package_reference/peft_model
 """
 
 from __future__ import annotations
