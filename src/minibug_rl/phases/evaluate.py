@@ -14,6 +14,7 @@ from typing import Any
 from minibug_rl.context import PipelineContext
 from minibug_rl.evaluation import evaluate_internal
 from minibug_rl.metrics import paired_bootstrap_interval
+from minibug_rl.run_logging import utc_timestamp
 
 
 def _selection_key(result: dict[str, Any]) -> tuple[float, float]:
@@ -43,12 +44,23 @@ def _evaluate_final_once(
         loaded = json.loads(result_path.read_text(encoding="utf-8"))
         if not isinstance(loaded, dict) or not isinstance(loaded.get("summary"), dict):
             raise ValueError(f"Saved final-test result {result_path} is malformed")
-        context.logger.message(
-            "final_test_reused",
-            f"Reusing completed final-test evidence for {label}.",
-            label=label,
+        expected_model = (
+            str(adapter_path) if adapter_path is not None else context.config.model.base_model
         )
-        return loaded
+        if loaded["summary"].get("model") == expected_model:
+            context.logger.message(
+                "final_test_reused",
+                f"Reusing completed final-test evidence for {label}.",
+                label=label,
+            )
+            return loaded
+        stale_path = result_path.with_name(f"{result_path.stem}.stale-{utc_timestamp()}.json")
+        result_path.replace(stale_path)
+        context.logger.message(
+            "final_test_stale",
+            f"Preserved stale evidence before reevaluating {label}.",
+            stale_path=str(stale_path),
+        )
     return evaluate_internal(
         context.config,
         context.logger,

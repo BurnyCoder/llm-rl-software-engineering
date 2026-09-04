@@ -25,6 +25,7 @@ def test_smoke_profile_maps_only_to_supported_current_grpo_fields(tmp_path: Path
     assert arguments.top_k == 0
     assert arguments.repetition_penalty == 1.0
     assert arguments.loss_type == "dr_grpo"
+    assert arguments.scale_rewards == "none"
     assert arguments.mask_truncated_completions is True
     assert arguments.beta == 0.0
     assert arguments.use_vllm is False

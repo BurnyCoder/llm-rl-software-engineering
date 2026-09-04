@@ -19,11 +19,18 @@ from minibug_rl.phases import evaluate as evaluate_phase
 from minibug_rl.run_logging import RunLogger
 
 
-def _result(label: str, fraction: float, solved: float) -> dict[str, Any]:
+def _result(
+    label: str,
+    fraction: float,
+    solved: float,
+    *,
+    model: str = "Qwen/Qwen2.5-Coder-0.5B-Instruct",
+) -> dict[str, Any]:
     """Build the smallest structurally valid evaluation result for phase tests."""
     return {
         "summary": {
             "label": label,
+            "model": model,
             "tasks": 12,
             "greedy_hidden_test_fraction": fraction,
             "greedy_pass_at_1": solved,
@@ -79,7 +86,13 @@ def test_evaluate_selects_on_validation_before_opening_final_test(
             "base-test-final": 0.20,
             "selected-test-final": 0.40,
         }
-        result = _result(label, fractions[label], float(label == "selected-test-final") / 12)
+        model = context.config.model.base_model if adapter_path is None else str(adapter_path)
+        result = _result(
+            label,
+            fractions[label],
+            float(label == "selected-test-final") / 12,
+            model=model,
+        )
         path = context.logger.directory / f"evaluation-{label}.json"
         path.write_text(json.dumps(result), encoding="utf-8")
         return result
@@ -120,11 +133,12 @@ def test_final_test_result_file_is_reused_after_interruption(
         sampled_k: int | None = None,
     ) -> dict[str, Any]:
         """Make every validation call succeed and record only final-test execution."""
-        del adapter_path, sampled_k
+        del sampled_k
         if split == "test":
             test_calls.append(label)
         fraction = 0.40 if label.startswith("train") else 0.30
-        result = _result(label, fraction, 0.0)
+        model = context.config.model.base_model if adapter_path is None else str(adapter_path)
+        result = _result(label, fraction, 0.0, model=model)
         output = context.logger.directory / f"evaluation-{label}.json"
         output.write_text(json.dumps(result), encoding="utf-8")
         return result

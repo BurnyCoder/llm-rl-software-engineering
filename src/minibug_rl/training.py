@@ -77,6 +77,7 @@ def build_grpo_config(
         repetition_penalty=1.0,
         beta=0.0,
         loss_type="dr_grpo",
+        scale_rewards="none",
         mask_truncated_completions=True,
         remove_unused_columns=False,
         use_vllm=False,
