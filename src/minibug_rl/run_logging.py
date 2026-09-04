@@ -43,9 +43,7 @@ class RunLogger:
         self._generation_file = (directory / "generations.jsonl").open(
             "a", encoding="utf-8", buffering=1
         )
-        self._metric_file = (directory / "metrics.jsonl").open(
-            "a", encoding="utf-8", buffering=1
-        )
+        self._metric_file = (directory / "metrics.jsonl").open("a", encoding="utf-8", buffering=1)
         # A lock prevents interleaved JSON records if reward workers log concurrently.
         self._lock = threading.Lock()
 

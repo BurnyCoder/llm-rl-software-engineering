@@ -49,8 +49,7 @@ def aggregate_records(records: list[EvaluationRecord], sampled_k: int) -> dict[s
     for record in greedy:
         greedy_by_task[record.task_id].append(record)
     if any(
-        len(greedy_by_task[task_id]) != 1
-        or greedy_by_task[task_id][0].sample_index != 0
+        len(greedy_by_task[task_id]) != 1 or greedy_by_task[task_id][0].sample_index != 0
         for task_id in task_ids
     ):
         raise ValueError("Evaluation requires exactly one greedy record per task")
@@ -74,8 +73,7 @@ def aggregate_records(records: list[EvaluationRecord], sampled_k: int) -> dict[s
         "tasks": len(task_ids),
         "greedy_pass_at_1": mean(float(record.solved) for record in greedy),
         f"sampled_pass_at_{sampled_k}": mean(
-            float(any(record.solved for record in sampled_by_task[task_id]))
-            for task_id in task_ids
+            float(any(record.solved for record in sampled_by_task[task_id])) for task_id in task_ids
         ),
         "greedy_hidden_test_fraction": mean(record.hidden_fraction for record in greedy),
         "sampled_hidden_test_fraction": mean(record.hidden_fraction for record in sampled),
@@ -114,8 +112,7 @@ def paired_bootstrap_interval(
     generator = random.Random(seed)
     # Resample paired differences rather than independently resampling model scores.
     bootstrapped = sorted(
-        mean(generator.choice(differences) for _ in differences)
-        for _ in range(samples)
+        mean(generator.choice(differences) for _ in differences) for _ in range(samples)
     )
     return {
         "mean_difference": mean(differences),
