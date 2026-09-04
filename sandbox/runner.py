@@ -5,9 +5,9 @@ scripts that never enter model prompts. Candidate output is captured with fixed 
 so container stdout remains a single trusted JSON reply.
 
 Sources:
-- https://docs.python.org/3/library/contextlib.html#contextlib.redirect_stdout
-- https://docs.python.org/3/library/functions.html#exec
-- https://docs.python.org/3/library/json.html
+- https://docs.python.org/3.12/library/contextlib.html#contextlib.redirect_stdout
+- https://docs.python.org/3.12/library/functions.html#exec
+- https://docs.python.org/3.12/library/json.html
 - https://github.com/bigcode-project/bigcode-evaluation-harness/blob/8fc5bae6479c4fbbb28c3f8b644f6a15b3f3b5bd/bigcode_eval/tasks/humanevalpack.py
 """
 

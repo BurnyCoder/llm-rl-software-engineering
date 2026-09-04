@@ -1,7 +1,7 @@
 [project]
 name = "minibug-rl"
 version = "0.1.0"
-description = "Tiny, reproducible reinforcement learning from unit-test rewards for Python bug repair"
+description = "Tiny, evidence-tracked reinforcement learning from unit-test rewards for Python bug repair"
 readme = "README.md"
 authors = [
     { name = "BurnyCoder", email = "happymancz@email.cz" }

@@ -1,18 +1,27 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "recorded_at_utc": "2026-09-04T04:41:19Z",
-  "scope": "Final verification of measured run evidence, public model loading, repository checks, documentation, and the compiled paper.",
+  "amended_at_utc": "2026-09-04T13:13:57Z",
+  "amendment": {
+    "reason": "Preserve the empirical checks while marking the incomplete documentation certification and original PDF build as superseded or historical.",
+    "supersedes_schema_version": 1,
+    "measured_values_changed": false,
+    "training_or_evaluation_rerun": false
+  },
+  "scope": "Historical verification of measured run evidence, public model loading, repository checks, documentation, and the then-current compiled paper, amended after a broader claims audit.",
   "run_id": "20260904T021845Z-minibug-rl-main",
-  "overall_status": "all_recorded_checks_passed",
+  "overall_status": "empirical_checks_passed_original_documentation_check_superseded",
   "status_vocabulary": {
-    "passed": "The named check was executed and its stated condition held."
+    "passed": "The named check was executed and its stated condition held.",
+    "historical": "The named check passed for the artifact revision identified in its result but does not certify a later replacement.",
+    "superseded": "A later audit found that this check's original scope or conclusion was incomplete; it must not be cited as a current pass."
   },
   "checks": [
     {
       "id": "run_identity",
       "status": "passed",
       "method": "Compared state.json identity fields with the checked source commit, curriculum, manifest, and canonical resolved configuration.",
-      "result": "Source commit 7027bc55baecc00fad51cbe2b8f030dca2c91c1e and the recorded config/data/manifest hashes agree; source_diff_sha256 is the SHA-256 of empty bytes."
+      "result": "Source commit 7027bc55baecc00fad51cbe2b8f030dca2c91c1e and the recorded config/data/manifest hashes agree. source_diff_sha256 is the SHA-256 of an empty tracked diff limited to src, sandbox, configs, pyproject.toml, and uv.lock; it is not evidence that the whole worktree, other tracked paths, or untracked files were clean."
     },
     {
       "id": "source_published_before_run",
@@ -71,8 +80,8 @@
     {
       "id": "budget_lock_ordering",
       "status": "passed",
-      "method": "Compared validation_only_complete, training_budget_locked, internal evaluation, and external evaluation event timestamps.",
-      "result": "Checkpoint 100 was locked at 2026-09-04T02:58:22.731882Z using only training/base-validation/smoke-validation/train-validation evidence. The first final internal evaluation completed later at 03:08:29.594324Z and the first external evaluation completed at 03:30:29.021977Z."
+      "method": "Compared validation_only_complete and training_budget_locked events with the earliest recorded final-internal and external generation timestamps, rather than relying on later evaluation-completion timestamps.",
+      "result": "Checkpoint 100 was locked at 2026-09-04T02:58:22.731882Z using only training/base-validation/smoke-validation/train-validation outcomes. The internal task file had already been loaded and structurally checked, but the earliest recorded internal-final model generation was 2026-09-04T03:06:05.340667Z. HumanEvalPack loading occurred in the post-lock evaluate path, and its earliest recorded model generation was 2026-09-04T03:11:35.747352Z. No final model outcome entered selection or the budget decision."
     },
     {
       "id": "training_health",
@@ -84,7 +93,13 @@
       "id": "adapter_and_publish_smoke",
       "status": "passed",
       "method": "Read the persisted smoke, export, and publish phase results.",
-      "result": "The smoke adapter reloaded, exported adapter/merged outputs matched on reload, and a clean Hub snapshot at revision 5b6e22a4c6c01bec95d10e93a0fc78666eb9c543 completed generation after redownload."
+      "result": "The smoke adapter reloaded, exported adapter/merged outputs matched on reload, and a clean Hub snapshot at revision 5b6e22a4c6c01bec95d10e93a0fc78666eb9c543 completed generation after redownload. The original publish phase did not itself compare local and downloaded weight hashes."
+    },
+    {
+      "id": "post_publish_weight_hash_comparison",
+      "status": "passed",
+      "method": "After the original publication phase, independently SHA-256 hashed the exported Hub tree and the clean exact-revision snapshot for both Safetensors files.",
+      "result": "Local and downloaded model.safetensors both hash to e6b2d3884e72fe8322eaa5fe181ce530593f710b8b4efdcf2012b911d2416a70; local and downloaded adapter/adapter_model.safetensors both hash to 37f5f71fae87a4fcc5b3df40d325544271d28cf7b55d6a0262c6096d6233b1b2. This post-publication check must not be described as an original publication gate."
     },
     {
       "id": "evidence_json_syntax",
@@ -100,15 +115,15 @@
     },
     {
       "id": "documentation_link_and_claim_check",
-      "status": "passed",
+      "status": "superseded",
       "method": "Cross-checked README, AGENTS, docs, reports, and paper claims against immutable evidence; parsed all local Markdown destinations; and independently checked cited remote URLs.",
-      "result": "Twelve Markdown files exposed 31 valid local destinations with none missing; cited remote URLs returned HTTP 200; artifact digests, numerical claims, commands, and caveats were reviewed and corrected where needed."
+      "result": "The original check found no broken local destination and reachable remote URLs, but a broader audit later identified inaccurate claim scope, moving version-sensitive links, and one tokenizer-digest typo. Its original documentation conclusion is therefore superseded; the empirical and link observations remain historical."
     },
     {
       "id": "paper_pdf_compile",
-      "status": "passed",
+      "status": "historical",
       "method": "Compiled paper/llm-swe-rl-experiment.tex with the checked LaTeX compile helper, scanned the final log for warnings, rendered every page to PNG, and visually inspected all pages.",
-      "result": "The eight-page PDF compiled without warnings or overflow, every rendered page was legible and unclipped, and output/pdf/llm-swe-rl-experiment.pdf has SHA-256 b4133cbd4063a6f5c739403a1a6be91c28ed4ee137be8324f42bae6a185e0289."
+      "result": "The superseded eight-page PDF compiled without warnings or overflow, every rendered page was legible and unclipped, and that historical output/pdf/llm-swe-rl-experiment.pdf had SHA-256 b4133cbd4063a6f5c739403a1a6be91c28ed4ee137be8324f42bae6a185e0289. A corrected PDF requires a new compile and verification record."
     },
     {
       "id": "published_model_and_inference_examples",

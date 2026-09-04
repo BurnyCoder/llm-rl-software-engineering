@@ -31,7 +31,7 @@
 \maketitle
 
 \begin{abstract}
-We ask whether a real reinforcement-learning-from-verifiable-rewards loop for software repair can be made reproducible on one 8~GB consumer GPU. We train a rank-16 LoRA adapter on the 0.49B-parameter Qwen2.5-Coder model for \TrainSteps{} Group Relative Policy Optimization steps. Four candidate repairs per prompt receive rewards from hidden unit tests executed in fresh resource-limited Docker containers. Training completed in \TrainSeconds{} seconds with \TrainPeakGiB{}~GiB peak allocated GPU memory and changed all \ChangedTensors{} trainable adapter tensors. Validation improved from \BaseValSolved{} to \ModelValSolved{} greedily solved tasks and selected the 100-step checkpoint. On the untouched 12-task internal test, full greedy solves rose from \BaseTestSolved{} to \ModelTestSolved{}, but mean greedy hidden-test correctness changed from \BaseTestHidden{} to \ModelTestHidden{} (paired difference \TestDifference{}, 95\% bootstrap interval \TestInterval{}). On frozen HumanEvalFixDocs-Python, greedy pass@1 changed from \BaseExternalPassed{} to \ModelExternalPassed{} (difference \ExternalDifference{}, interval \ExternalInterval{}). Invalid internal candidates fell from \BaseInvalid{} to \ModelInvalid{}. The result establishes an end-to-end, publicly reloadable RL pipeline and a clear output-validity improvement; it does not establish a statistically conclusive general repair-capability gain.
+We ask whether a reinforcement-learning-from-verifiable-rewards loop for single-function software repair can complete on one recorded 8~GB consumer GPU. We train a rank-16 LoRA adapter on the 0.49B-parameter Qwen2.5-Coder model for \TrainSteps{} Group Relative Policy Optimization steps. Four candidate repairs per prompt receive one composite reward: structural rejects are handled on the host, deterministic cache hits reuse an earlier breakdown, and valid cache misses run hidden unit tests in fresh resource-limited Docker containers. Training completed in \TrainSeconds{} seconds with \TrainPeakGiB{}~GiB peak allocated GPU memory and changed all \ChangedTensors{} trainable adapter tensors. Validation improved from \BaseValSolved{} to \ModelValSolved{} greedily solved tasks and selected the 100-step checkpoint. On the 12-task internal set held out from model optimization and selection, full greedy solves rose from \BaseTestSolved{} to \ModelTestSolved{}, but mean greedy hidden-test correctness changed from \BaseTestHidden{} to \ModelTestHidden{} (paired difference \TestDifference{}, paired percentile-bootstrap 95\% interval \TestInterval{}). On frozen HumanEvalFixDocs-Python, greedy pass@1 changed from \BaseExternalPassed{} to \ModelExternalPassed{} (difference \ExternalDifference{}, paired percentile-bootstrap 95\% interval \ExternalInterval{}). Invalid internal candidates were \BaseInvalid{} versus \ModelInvalid{}. The result establishes an end-to-end, publicly reloadable RL pipeline and an observed output-validity difference; it does not establish a statistically conclusive general repair-capability gain.
 \end{abstract}
 
 \section{Research question and contribution}
@@ -39,10 +39,10 @@ We ask whether a real reinforcement-learning-from-verifiable-rewards loop for so
 Software is unusually suitable for verifiable reinforcement learning because candidate behavior can be checked by executable tests rather than a learned preference model. The practical obstacle is that serious repository-scale agent benchmarks often combine large policies, long contexts, tool orchestration, and substantial compute. This experiment narrows the domain to deterministic single-function Python repair and asks:
 
 \begin{quote}
-Can a sub-billion-parameter code model receive genuine group-relative policy updates from hidden tests, on one 8~GB GPU, while retaining defensible split discipline, execution isolation, complete evidence, and a resulting model that another user can load?
+Can a sub-billion-parameter code model receive genuine group-relative policy updates from hidden tests, on one 8~GB GPU, while retaining explicit split discipline, resource-limited execution isolation, auditable evidence, and a resulting model that another user can load?
 \end{quote}
 
-The hypothesis was that 100 low-rank GRPO steps would improve validation hidden-test correctness by at least 0.05 or solve one additional validation task, without worsening the aggregate format/runtime/policy status rate. The experiment contributes (i) a fully pinned implementation; (ii) an original 36/12/12 train/validation/test curriculum with structural leakage checks; (iii) a Docker-mediated reward path; (iv) locked internal and external paired evaluation; and (v) public merged and adapter artifacts.
+The gate pre-specified in producing source commit \texttt{\SourceCommit} was that 100 low-rank GRPO steps would improve validation hidden-test correctness by at least 0.05 or solve one additional validation task, without worsening the aggregate format/runtime/policy status rate \cite{sourcecommit}. The experiment contributes (i) a version-pinned implementation; (ii) a project-authored 36/12/12 train/validation/test curriculum with structural leakage checks; (iii) a Docker-mediated reward path; (iv) selection-locked internal and external paired evaluation; and (v) public merged and adapter artifacts. Project authorship is a repository declaration, not an independent originality audit.
 
 The scope is intentionally modest. A function-repair policy is not a repository agent, and passing small unit-test suites is not evidence of broad software-engineering autonomy.
 
@@ -50,20 +50,20 @@ The scope is intentionally modest. A function-repair policy is not a repository 
 
 GRPO was introduced as a policy-optimization variant that forms relative advantages from groups of sampled completions while avoiding a learned value model \cite{deepseekmath}. TRL exposes the algorithm, custom reward functions, PEFT integration, and DR-GRPO loss in a maintained trainer interface \cite{trl}. LoRA represents the update with small trainable low-rank matrices while leaving base weights frozen \cite{lora,peft}. These properties make the combination suitable for limited memory.
 
-Qwen2.5-Coder provides instruction-tuned code models down to 0.5B parameters \cite{qwen}. The pinned base is
+Qwen2.5-Coder provides instruction-tuned code models down to a reported 0.49B parameters \cite{qwen,qwenmodel}. The pinned base is
 \begin{center}
 \small\texttt{Qwen/Qwen2.5-Coder-0.5B-Instruct}\\
 \texttt{commit \BaseRevision}.
 \end{center}
-The public DebugArena model card motivated the particular 0.5B model, four-completion group, and $10^{-5}$ learning rate \cite{debugarena}. Its illustrative snippet does not define its reward function, dataset construction, adapter attachment, isolation, held-out protocol, or released trained checkpoint. MiniBug-RL therefore uses the pinned official TRL, PEFT, Transformers, and Hub APIs rather than treating that snippet as a complete recipe.
+The pinned public DebugArena model card motivated the particular 0.5B model, four-completion group, and $10^{-5}$ learning rate \cite{debugarena}. Its illustrative snippet does not define its reward function, dataset construction, adapter attachment, isolation, held-out protocol, or a released trained checkpoint. MiniBug-RL therefore uses the installed, version-pinned TRL, PEFT, Transformers, and Hub APIs rather than treating that snippet as a complete recipe.
 
 \section{Method}
 
 \subsection{Curriculum and prompt contract}
 
-The original curriculum contains 60 short, import-free functions: 36 training, 12 validation, and 12 final-test tasks. Families include incorrect comparisons, boundary and off-by-one errors, bad state updates, accumulation errors, indexing mistakes, and Boolean logic. Each task has a natural-language specification, buggy source, two public JSON examples, and four to eight hidden JSON cases. It contains no gold repair.
+The project-authored curriculum contains 60 short, import-free functions: 36 training, 12 validation, and 12 final-test tasks. Families include incorrect comparisons, boundary and off-by-one errors, bad state updates, accumulation errors, indexing mistakes, and Boolean logic. Each task has a natural-language specification, buggy source, two public JSON examples, and no gold repair; 59 tasks have four hidden JSON cases and one has five \cite{runsummary}.
 
-The model receives only the specification, buggy function, and public examples. It is instructed to return exactly one complete replacement function. A versioned manifest hashes canonical task records and normalized abstract syntax trees. Bound names are alpha-normalized and literal values are masked by type before structural hashing; no normalized template crosses a split. Every original bug was run in the real container and shown to fail at least one hidden case before training.
+The model receives only the specification, buggy function, and public examples. It is instructed to return exactly one complete replacement function. A versioned manifest hashes canonical task records and normalized abstract syntax trees. Bound names are alpha-normalized and literal values are masked by type before structural hashing; no normalized template crosses a split. Every original bug was run in the real container and shown to fail at least one hidden case before training \cite{sourcecommit,runsummary}.
 
 \subsection{Reward and isolation}
 
@@ -71,19 +71,19 @@ For a valid candidate with $n$ hidden tests, let $p$ be the fraction passed and 
 \begin{equation}
   r = p + I[p=1] + 0.1,
 \end{equation}
-so a syntactically valid but wholly wrong function earns 0.1 and a complete repair earns 2.1. Invalid structure returns $-0.3$, a prohibited construct returns $-1.0$, and a valid function that crashes or times out receives $0.1-0.25=-0.15$. Expected values remain in the trusted host process; only candidate source and JSON call inputs cross the container boundary. Actual results return to the host for comparison.
+so a syntactically valid but wholly wrong function earns 0.1 and a complete repair earns 2.1. Invalid structure returns $-0.3$, a prohibited construct returns $-1.0$, and a valid function that crashes or times out receives $0.1-0.25=-0.15$. Expected values remain in the trusted host process; only candidate source and JSON call inputs cross the container boundary. Actual results return to the host for comparison \cite{sourcecommit}.
 
-Every rollout runs in a newly named container from this immutable image ID:
+Across the two-step smoke and 100-step main training, the 404 rollout records comprised 38 host-side structural rejections, 175 deterministic cache hits, and 191 valid cache misses. Each valid cache miss ran in a newly named container from this immutable image ID \cite{runsummary}:
 \begin{center}
 \small\texttt{sha256:\DockerImageDigest}.
 \end{center}
-Networking is disabled (\texttt{--network none}) and the root filesystem is read only. The runtime drops all capabilities, sets \texttt{no-new-privileges}, uses non-root UID/GID 65532, and allows no mounts. It also enforces a 32-PID limit, 128~MiB memory with no swap, 0.5 CPU, a 16~MiB no-execute temporary filesystem, and a host deadline. Docker documents these controls and the limitations of container isolation \cite{dockerrun,dockernone}. AST filtering and reduced builtins are defense in depth, not a security boundary.
+Networking is disabled (\texttt{--network none}) and the root filesystem is read only. The runtime drops all capabilities, sets \texttt{no-new-privileges}, uses non-root UID/GID 65532, and supplies no host bind mount, named volume, Docker socket, secret, or GPU device. Its only explicit mount is a 16~MiB \texttt{/tmp} tmpfs with \texttt{noexec,nosuid}. It also sets a 32-PID limit, 128~MiB memory with no swap, a 0.5-CPU scheduling quota, and a separate host-enforced wall-clock deadline. The pinned Docker 29.4.1 CLI reference documents these run flags \cite{dockerrun}. AST filtering and reduced builtins are defense in depth, not a security boundary.
 
 \subsection{Model update}
 
 The implementation uses BF16 Transformers/PEFT rather than 4-bit loading. LoRA rank is 16, alpha is 32, dropout is zero, bias is disabled, and \texttt{all-linear} targets linear and Conv1D layers except the output layer. This produces \TrainableParameters{} trainable parameters (\TrainablePercent{} of 502,830,976 total).
 
-The main GRPO configuration is shown in Table~\ref{tab:training}. The effective optimizer batch is $1\times4=4$, divisible by the four generations. Reward scaling is disabled, $\beta=0$ omits a reference-model KL term, the DR-GRPO loss uses the fixed completion-length divisor, and fully truncated completions are masked. Gradient checkpointing and SDPA reduce memory. A callback would stop if more than 80\% of groups had zero reward variance for 20 consecutive logs.
+The main GRPO configuration is shown in Table~\ref{tab:training}. The effective optimizer batch is $1\times4=4$, divisible by the four generations. Reward scaling is disabled, $\beta=0$ omits a reference-model KL term, the DR-GRPO loss uses the fixed completion-length divisor, and fully truncated completions are masked. Gradient checkpointing and SDPA reduce memory. A callback would stop if more than 80\% of groups had zero reward variance for 20 consecutive logs \cite{trl,sourcecommit,runsummary}.
 
 \begin{table}[ht]
 \centering
@@ -107,25 +107,25 @@ Checkpoint interval & 25 steps; retain latest two \\
 \end{tabular}
 \end{table}
 
-\subsection{Pre-registered selection and evaluation}
+\subsection{Source-committed selection and evaluation}
 
 The untouched base, two-step smoke adapter, and 100-step adapter use identical validation prompts, task-level seeds, decoding, and sandbox. Candidate adapters are ranked lexicographically by mean greedy hidden-test fraction and then greedy full-solve rate. The learning gate requires a hidden-fraction point gain of at least 0.05 or one additional solved task, and an aggregate rate of invalid, timeout, runtime, and policy statuses no worse than the base.
 
-The optional 200-step continuation decision was made before opening final data. The 100-step adapter passed the gate, while mean training rewards in steps 51--75 and 76--100 were 1.5230 and 1.5355. The checkpoint was locked rather than extending the budget opportunistically.
+The optional 200-step continuation decision was made before any final model generation, score, or outcome was available. Internal final task definitions and hidden cases had already been loaded and structurally checked; HumanEvalPack rows were loaded only in the subsequent evaluation path. The 100-step adapter passed the gate, while mean training rewards in steps 51--75 and 76--100 were 1.5230 and 1.5355. The checkpoint was locked rather than extending the budget opportunistically \cite{runsummary}.
 
-Internal evaluation uses one greedy and four sampled candidates per task. ``Sampled success@4'' is the observed fraction with at least one full solve among exactly four draws, not the unbiased pass@$k$ estimator discussed by Chen et al. \cite{codexeval}. Confidence intervals use 10,000 paired task-level bootstrap resamples with seed 42.
+Internal evaluation uses one greedy and four sampled candidates per task. ``Observed sampled success@4'' is the fraction with at least one full solve among exactly four recorded draws, not the unbiased pass@$k$ estimator discussed by Chen et al. \cite{codexeval}. Reported intervals use 10,000 paired task-level percentile-bootstrap resamples with seed 42.
 
-Only after selection, the same checkpoint is evaluated on HumanEvalFixDocs-Python from HumanEvalPack \cite{octopack}, pinned to dataset revision
+Only after selection, the same checkpoint is evaluated on HumanEvalFixDocs-Python from HumanEvalPack \cite{octopack,datasetcard}, pinned to dataset revision
 \begin{center}
 \small\texttt{9a41762f73a8cb23bb5811b73d5aab164efcf378}.
 \end{center}
-There is one greedy candidate per each of 164 tasks. The prompt conversion and first-block stopping follow the pinned BigCode harness. MiniBug-RL applies a 3-second hardened-container deadline, stricter than the harness's 10-second Python limit; the score is therefore not leaderboard-identical.
+There is one greedy candidate for each of 164 tasks. The prompt conversion and first-block stopping follow the pinned BigCode harness \cite{bigcodeharness}. MiniBug-RL applies a three-second wall-clock deadline to its resource-limited container, stricter than the harness's 10-second Python limit; the score is therefore not leaderboard-identical.
 
 \section{Results}
 
 \subsection{Training viability}
 
-The two-step smoke changed 168 adapter tensors and survived save/reload. Main training reached exactly \TrainSteps{} steps with finite loss \TrainLoss{}, changed all \ChangedTensors{} trainable tensors, and had adapter $\ell_2$ delta \AdapterDelta{}. Peak allocated GPU memory was \TrainPeakBytes{} bytes (\TrainPeakGiB{}~GiB), well below the recorded 8,151~MiB device capacity. The longest zero-reward-variance streak was eight, below the 20-log stop threshold. Four of 400 rollouts were clipped at the completion limit, all by step 31. No training, Trackio, CUDA, or reward-collapse failure occurred.
+The two-step smoke changed 168 adapter tensors and survived save/reload. Main training reached exactly \TrainSteps{} steps with finite loss \TrainLoss{}, changed all \ChangedTensors{} trainable tensors, and had adapter $\ell_2$ delta \AdapterDelta{}. Peak allocated GPU memory was \TrainPeakBytes{} bytes (\TrainPeakGiB{}~GiB), below the recorded 8,151~MiB device capacity. The longest zero-reward-variance streak was eight, below the 20-log stop threshold. Four of 400 main-training rollouts were clipped at the completion limit, all by step 31. The structured log records no training, CUDA, or reward-collapse failure; process stderr was not part of that log, so it cannot certify every third-party diagnostic stream \cite{runsummary}.
 
 \subsection{Validation and locked internal test}
 
@@ -148,9 +148,9 @@ Final invalid candidates & \BaseInvalid{} & \ModelInvalid{} \\
 \end{tabular}
 \end{table}
 
-Validation selected the main adapter with a greedy hidden-fraction difference of \ValDifference{} (95\% interval \ValInterval{}) and one additional solved task. The interval crosses zero; the deterministic pre-registered gate passed, but this is not statistical significance.
+Validation selected the main adapter with a greedy hidden-fraction difference of \ValDifference{} (paired percentile-bootstrap 95\% interval \ValInterval{}) and one additional solved task. The interval crosses zero; the deterministic source-committed gate passed, but this is not statistical significance \cite{runsummary,taskscores}.
 
-On final tasks, greedy full solves rose by one, while mean greedy hidden fraction was essentially unchanged: difference \TestDifference{}, interval \TestInterval{}. Both policies passed 30 of 49 raw greedy hidden cases; the small difference in macro means arises because tasks are weighted equally and one task has five cases. Sampled hidden correctness increased, and invalid formatting fell markedly, although runtime errors rose from four to seven and the selected set added one timeout and one policy violation. Thus output-structure reliability improved overall but not every reliability category did.
+On final tasks, greedy full solves differed by one, while mean greedy hidden fraction was essentially unchanged: difference \TestDifference{}, interval \TestInterval{}. Both policies passed 30 of 49 raw greedy hidden cases; the small difference in macro means arises because tasks are weighted equally and one task has five cases. Sampled hidden correctness was higher and invalid formatting lower for the selected adapter, although runtime errors rose from four to seven and the selected set added one timeout and one policy violation. Thus the precise structural result is fewer invalid candidates, not an improvement in every failure category \cite{hubresults,taskscores}.
 
 \subsection{Frozen external evaluation}
 
@@ -164,27 +164,27 @@ Metric & Base & Selected adapter \\
 \midrule
 Passed & \BaseExternalPassed{} & \ModelExternalPassed{} \\
 Pass@1 & \BaseExternalRate{} & \ModelExternalRate{} \\
-Functional failures & 124 & 122 \\
+Failed, excluding timeout & 124 & 122 \\
 Timeouts & \BaseExternalTimeouts{} & \ModelExternalTimeouts{} \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-The paired external point difference is \ExternalDifference{} with interval \ExternalInterval{}. The adapter gained Python/69, Python/78, and Python/98, and lost Python/62 and Python/86; 159 task outcomes tied. External timeouts increased from \BaseExternalTimeouts{} to \ModelExternalTimeouts{}. This one-task net gain is compatible with no underlying effect.
+The paired difference was \ExternalDifference{} (paired percentile-bootstrap 95\% interval \ExternalInterval{}). Three tasks improved, two regressed, and 159 tied. Timeouts were \BaseExternalTimeouts{} versus \ModelExternalTimeouts{}. The one-task net gain is compatible with no underlying effect \cite{hubresults,taskscores}.
 
 \section{Error analysis and interpretation}
 
-The clearest learned behavioral change is format adherence on the internal final protocol: invalid candidates dropped from 19 to one among 60 greedy-plus-sampled candidates. This matters operationally because a function-repair policy cannot earn execution feedback from prose, multiple functions, or malformed source. It may also explain the increase in sampled partial correctness.
+The largest observed behavioral difference is format adherence on the internal final protocol: invalid candidates were 19 for base and one for the selected adapter among 60 greedy-plus-sampled candidates per system. This matters operationally because prose, multiple functions, and malformed source receive host-side penalties without reaching hidden-test execution. The single run does not isolate why sampled partial correctness also differed.
 
-Correctness changes were heterogeneous. Greedy internal gains occurred on Boolean parsing, nearest multiples, wrapped indexing, and pair sums. Regressions occurred on Hamming distance, alternating strings, and trace computation. The adapter sometimes transformed an invalid output into executable but incorrect source, moving errors from parsing into runtime behavior. Longer external completions also made the adapter evaluation nearly twice as slow and produced one additional timeout.
+Correctness changes were heterogeneous. Relative to base, greedy internal improvements occurred on Boolean parsing, nearest multiples, wrapped indexing, and pair sums; regressions occurred on Hamming distance, alternating strings, and trace computation. Some selected-adapter outputs were executable but incorrect where base outputs had been invalid, moving observed errors from parsing into runtime behavior. Longer selected-adapter completions coincided with a 2,065.4-second external evaluation versus 1,116.5 seconds for base (1.85$\times$) and one additional timeout; the run did not isolate a causal timing mechanism \cite{hubresults}.
 
-Accordingly, the evidence supports the narrow claim that verifiable GRPO was implemented successfully and altered the policy in a useful structural direction. It does not support a broad claim of improved software engineering. All three paired intervals---validation, internal final, and external---include zero.
+Accordingly, the evidence supports the narrow claim that verifiable GRPO completed, changed the adapter tensors, and coincided with fewer invalidly structured internal candidates in this comparison. It does not support a broad claim of improved software engineering. All three paired intervals---validation, internal final, and external---include zero.
 
 \section{Experiment history and corrective loop}
 
-An initial diagnostic run completed preflight, preparation, baseline, and a two-step smoke check, but exposed an observability defect: TRL emitted undefined clip extrema for an entirely clipped batch, and Trackio 0.37 dropped that complete metric record. The run was stopped manually before main training. The fix subclasses the official callback, removes only \texttt{None} fields, and retains zero and negative metrics. Curriculum review at the same boundary found two hidden suites that did not catch their authored bugs and one cross-split structural collision; all were corrected and re-audited before the authoritative run.
+An initial diagnostic run completed preflight, preparation, baseline, and a two-step smoke check, but its terminal displayed a Trackio conversion warning when TRL emitted undefined clip extrema for an entirely clipped batch. That stderr warning was not persisted in the structured log, and a later-inspected Trackio database was mutable and absent from the artifact manifest; the evidence therefore does not establish that Trackio durably dropped a complete record. The run was stopped manually before main training. The fix subclasses the official callback, removes only \texttt{None} fields, and retains zero and negative metrics. Curriculum review at the same boundary found two hidden suites that did not catch their authored bugs and one cross-split structural collision; all were corrected and re-audited before the completed run.
 
-This diagnostic evidence is not pooled with the final experiment because its source, data, and manifest hashes differ. The authoritative loop was: define a small verifiable domain; state the gate; audit data and isolation; measure the base; prove gradient/save/reload viability; train 100 steps; decide the budget from training plus validation; lock; evaluate once; export; publish; re-download; and report both positive and neutral outcomes.
+This diagnostic evidence is not pooled with the final experiment because its source, data, and manifest hashes differ. The completed loop was: define a small verifiable domain; state the gate; audit data and isolation; measure the base; prove gradient/save/reload viability; train 100 steps; decide the budget from training plus validation; lock; score each final benchmark once per compared system; export; publish; re-download; and report both positive and neutral outcomes.
 
 \section{Threats to validity}
 
@@ -192,27 +192,27 @@ This diagnostic evidence is not pooled with the final experiment because its sou
 
 \textbf{Selection.} Validation is intentionally optimistic because it selects the checkpoint and budget. Only final-test and external results estimate post-selection behavior.
 
-\textbf{Benchmark exposure.} HumanEvalPack was absent from local training, reward design, and selection, but upstream base-model pretraining exposure cannot be ruled out. Both policies share that risk.
+\textbf{Benchmark exposure.} No HumanEvalPack row, model outcome, or score entered training, reward computation, selection, hyperparameter changes, or the budget decision. This data-flow statement does not prove that benchmark concepts were unknown to the authors, and upstream base-model pretraining exposure cannot be ruled out. Both evaluated policies share the latter risk.
 
 \textbf{Protocol comparability.} The external prompt uses the raw HumanEvalFixDocs instruct form rather than Qwen's chat template, and the 3-second deadline differs from the BigCode harness. The measured numbers must not be compared directly with stock leaderboard entries.
 
-\textbf{Security.} Containers share the host kernel and are not perfect hostile-code virtual machines. The setup uses no mounts or Docker socket, but higher-assurance deployments should add a disposable VM, rootless Docker, user namespaces, seccomp/AppArmor, or a microVM boundary.
+\textbf{Security.} Containers share the host kernel and are not perfect hostile-code virtual machines. The setup uses no host bind or named-volume mount and no Docker socket, but it does mount an isolated \texttt{/tmp} tmpfs. Higher-assurance deployments should add a disposable VM, rootless Docker, user namespaces, seccomp/AppArmor, or a microVM boundary.
 
 \textbf{Scope.} Synthetic pure-function repair does not test repository navigation, dependency management, multi-file patches, tests written by the model, or long-horizon agent behavior.
 
 \section{Reproducibility and artifacts}
 
-The producing source commit is \texttt{\SourceCommit}. Public configuration, curriculum, and manifest SHA-256 hashes are retained with the experiment report. The run used Python 3.12, PyTorch 2.14.0+cu130, Transformers 5.16.1, TRL 1.12.0, PEFT 0.20.0, and Docker 29.4.1 on an NVIDIA GeForce RTX 5070 Laptop GPU. Every prompt/output pair, reward component, per-step metric, environment field, checkpoint, selection decision, evaluation candidate, and phase state was logged locally.
+The producing source commit is \texttt{\SourceCommit}. Public configuration, curriculum, and manifest SHA-256 hashes are retained with the experiment report \cite{sourcecommit,runsummary}. The project required Python 3.12 or newer, but the persisted run environment did not capture the Python patch release. It did record PyTorch 2.14.0+cu130, Transformers 5.16.1, TRL 1.12.0, PEFT 0.20.0, and Docker 29.4.1 on an NVIDIA GeForce RTX 5070 Laptop GPU. Full prompt/completion pairs, reward breakdowns, and per-step metrics were recorded in append-only logs; environment, checkpoint, selection, evaluation, export, and phase state were retained in separate artifacts rather than all being fields of one log.
 
 The public Hugging Face repository is
 \begin{center}
 \url{https://huggingface.co/BurnyCoder/qwen2.5-coder-0.5b-swe-rl}
 \end{center}
-at immutable revision \texttt{\HubRevision}. Its root contains the merged model, tokenizer, card, configuration, and measured results; \texttt{adapter/} contains the separate LoRA. Publication was accepted only after re-downloading that exact commit, byte-comparing both weight files, loading the root model, and producing a non-empty greedy repair.
+at immutable original result revision \texttt{\HubRevision}. Its root contains the merged model, tokenizer, card, configuration, and measured results; \texttt{adapter/} contains the separate LoRA \cite{hubresults}. The original publish phase re-downloaded that exact revision, loaded the root model, and produced a non-empty greedy repair, but did not compare weight hashes. An independent post-publication check later found byte-identical local and downloaded Safetensors: merged SHA-256 \texttt{e6b2d3884e72fe8322eaa5fe181ce530593f710b8b4efdcf2012b911d2416a70} and adapter SHA-256 \texttt{37f5f71fae87a4fcc5b3df40d325544271d28cf7b55d6a0262c6096d6233b1b2} \cite{verification}.
 
 \section{Conclusion}
 
-MiniBug-RL answers the engineering question affirmatively: a complete software-repair RL loop, including verifiable rewards, low-rank updates, split discipline, sandboxed execution, paired evaluation, model export, and public reload verification, fits comfortably on an 8~GB GPU. The scientific result is more restrained. The selected adapter solved one additional task on each held-out benchmark and dramatically reduced malformed internal outputs, but average greedy correctness did not reliably improve and every paired interval includes zero. The appropriate next experiment is a larger structurally diverse training curriculum and multiple seeds, selected without reopening the current final sets.
+MiniBug-RL answers the engineering question affirmatively for the recorded system: a complete single-function software-repair RL loop, including verifiable rewards, low-rank updates, split discipline, resource-limited execution, paired evaluation, model export, and public reload verification, completed on an 8~GB GPU at \TrainPeakGiB{}~GiB measured peak allocated training memory. The scientific result is more restrained. The selected adapter solved one additional task on each selection-held-out benchmark and had substantially fewer malformed internal outputs, but average greedy correctness did not reliably improve and every paired interval includes zero. The appropriate next experiment is a larger structurally diverse training curriculum and multiple seeds, selected without tuning against the current model-scored final sets.
 
 \appendix
 \section{Exact reproduction commands}
@@ -222,8 +222,6 @@ git clone https://github.com/BurnyCoder/llm-rl-software-engineering.git
 cd llm-rl-software-engineering
 git checkout 7027bc55baecc00fad51cbe2b8f030dca2c91c1e
 uv sync --locked
-cp .env.example .env
-chmod 600 .env
 RUN_ID="$(date -u +%Y%m%dT%H%M%SZ)-minibug-rl-main"
 uv run swe-rl all --config configs/local-8gb.toml \
   --run-id "$RUN_ID" --skip-publish
@@ -240,7 +238,8 @@ uv run swe-rl publish --config configs/local-8gb.toml \
 
 Machine-readable checked summaries live in \texttt{reports/evidence/}. Run-specific hypotheses, failures, fixes, and decisions live in \texttt{reports/experiments/}. The operational procedure, stable methodology, threat model, and provenance interpretation live in separate files under \texttt{docs/}. Raw logs and model weights remain outside Git and are referenced by run ID and immutable public commits.
 
-\begin{thebibliography}{10}
+{\raggedright
+\begin{thebibliography}{99}
 
 \bibitem{deepseekmath}
 Z. Shao et al.
@@ -261,8 +260,8 @@ E. Hu et al.
 
 \bibitem{peft}
 Hugging Face.
-\newblock PEFT LoRA API documentation.
-\newblock \url{https://huggingface.co/docs/peft/main/package_reference/lora}
+\newblock PEFT 0.20.0 LoRA API documentation.
+\newblock \url{https://huggingface.co/docs/peft/v0.20.0/en/package_reference/lora}
 
 \bibitem{qwen}
 B. Hui et al.
@@ -270,21 +269,24 @@ B. Hui et al.
 \newblock \emph{arXiv:2409.12186}, 2024.
 \newblock \url{https://arxiv.org/abs/2409.12186}
 
+\bibitem{qwenmodel}
+Qwen Team.
+\newblock Qwen2.5-Coder-0.5B-Instruct model card at commit
+\texttt{ea3f2471cf1b1f0db85067f1ef93848e38e88c25}.
+\newblock \url{https://huggingface.co/Qwen/Qwen2.5-Coder-0.5B-Instruct/blob/ea3f2471cf1b1f0db85067f1ef93848e38e88c25/README.md}
+
 \bibitem{debugarena}
 B. V. Tadepalli.
 \newblock DebugArena: Teaching LLMs to Fix Bugs Through Trial and Error.
-\newblock Hugging Face model card, 2026.
-\newblock \url{https://huggingface.co/BharathVikas/debugarena}
+\newblock Hugging Face model card at commit
+\texttt{e4be134207727d684b8a7edfbc7934159893617b}, 2026.
+\newblock \url{https://huggingface.co/BharathVikas/debugarena/blob/e4be134207727d684b8a7edfbc7934159893617b/README.md}
 
 \bibitem{dockerrun}
 Docker, Inc.
-\newblock \texttt{docker container run} reference.
-\newblock \url{https://docs.docker.com/reference/cli/docker/container/run/}
-
-\bibitem{dockernone}
-Docker, Inc.
-\newblock None network driver.
-\newblock \url{https://docs.docker.com/engine/network/drivers/none/}
+\newblock Docker CLI 29.4.1 \texttt{run} reference source at commit
+\texttt{055a478ea9010a19d0d4674c0d0e87ade37a4223}.
+\newblock \url{https://github.com/docker/cli/blob/055a478ea9010a19d0d4674c0d0e87ade37a4223/docs/reference/commandline/run.md}
 
 \bibitem{codexeval}
 M. Chen et al.
@@ -298,6 +300,46 @@ N. Muennighoff et al.
 \newblock \emph{arXiv:2308.07124}, 2023.
 \newblock \url{https://arxiv.org/abs/2308.07124}
 
+\bibitem{datasetcard}
+BigCode Project.
+\newblock HumanEvalPack dataset card at revision
+\texttt{9a41762f73a8cb23bb5811b73d5aab164efcf378}.
+\newblock \url{https://huggingface.co/datasets/bigcode/humanevalpack/blob/9a41762f73a8cb23bb5811b73d5aab164efcf378/README.md}
+
+\bibitem{bigcodeharness}
+BigCode Project.
+\newblock Pinned HumanEvalPack evaluation implementation at commit
+\texttt{8fc5bae6479c4fbbb28c3f8b644f6a15b3f3b5bd}.
+\newblock \url{https://github.com/bigcode-project/bigcode-evaluation-harness/blob/8fc5bae6479c4fbbb28c3f8b644f6a15b3f3b5bd/bigcode_eval/tasks/humanevalpack.py}
+
+\bibitem{sourcecommit}
+MiniBug-RL.
+\newblock Producing source commit
+\texttt{7027bc55baecc00fad51cbe2b8f030dca2c91c1e}.
+\newblock \url{https://github.com/BurnyCoder/llm-rl-software-engineering/commit/7027bc55baecc00fad51cbe2b8f030dca2c91c1e}
+
+\bibitem{runsummary}
+MiniBug-RL.
+\newblock Audited measured run summary, schema version 2.
+\newblock \texttt{reports/evidence/run-summary.json}, distributed with this paper.
+
+\bibitem{taskscores}
+MiniBug-RL.
+\newblock Exact paired task scores and intervals.
+\newblock \texttt{reports/evidence/task-scores.json}, distributed with this paper.
+
+\bibitem{verification}
+MiniBug-RL.
+\newblock Amended independent verification record, schema version 2.
+\newblock \texttt{reports/evidence/verification.json}, distributed with this paper.
+
+\bibitem{hubresults}
+MiniBug-RL.
+\newblock Immutable published comparison result at revision
+\texttt{5b6e22a4c6c01bec95d10e93a0fc78666eb9c543}.
+\newblock \url{https://huggingface.co/BurnyCoder/qwen2.5-coder-0.5b-swe-rl/blob/5b6e22a4c6c01bec95d10e93a0fc78666eb9c543/results.json}
+
 \end{thebibliography}
+}
 
 \end{document}
