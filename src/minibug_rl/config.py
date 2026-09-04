@@ -9,9 +9,10 @@ from __future__ import annotations
 
 import os
 import tomllib
+from collections.abc import Mapping
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any
 
 
 class ConfigurationError(ValueError):
@@ -39,10 +40,6 @@ class ModelConfig:
     dtype: str
     max_prompt_length: int
     max_completion_length: int
-    # `transformers` is the reproducible default; `unsloth` is an explicit optional profile.
-    backend: str = "transformers"
-    # Four-bit loading is enabled only for the corrected DebugArena-derived fallback.
-    load_in_4bit: bool = False
 
 
 @dataclass(frozen=True)
@@ -162,12 +159,13 @@ def load_run_config(
             _required(model_data, "max_completion_length", "model"),
             "model.max_completion_length",
         ),
-        backend=str(model_data.get("backend", "transformers")),
-        load_in_4bit=bool(model_data.get("load_in_4bit", False)),
     )
     training = TrainingConfig(
         seed=int(_required(training_data, "seed", "training")),
-        max_steps=_positive(_required(training_data, "max_steps", "training"), "training.max_steps"),
+        max_steps=_positive(
+            _required(training_data, "max_steps", "training"),
+            "training.max_steps",
+        ),
         num_generations=_positive(
             _required(training_data, "num_generations", "training"),
             "training.num_generations",
@@ -183,7 +181,10 @@ def load_run_config(
         learning_rate=float(_required(training_data, "learning_rate", "training")),
         temperature=float(_required(training_data, "temperature", "training")),
         top_p=float(_required(training_data, "top_p", "training")),
-        save_steps=_positive(_required(training_data, "save_steps", "training"), "training.save_steps"),
+        save_steps=_positive(
+            _required(training_data, "save_steps", "training"),
+            "training.save_steps",
+        ),
         lora_rank=_positive(training_data.get("lora_rank", 16), "training.lora_rank"),
         lora_alpha=_positive(training_data.get("lora_alpha", 32), "training.lora_alpha"),
         warmup_ratio=float(training_data.get("warmup_ratio", 0.05)),
@@ -206,15 +207,11 @@ def load_run_config(
             "training effective batch must be divisible by training.num_generations"
         )
     # Sampling probabilities and warmup ratios have closed meaningful ranges.
-    if not 0.0 < training.temperature:
+    if training.temperature <= 0.0:
         raise ConfigurationError("training.temperature must be greater than zero")
     if not 0.0 < training.top_p <= 1.0:
         raise ConfigurationError("training.top_p must be in (0, 1]")
     if not 0.0 <= training.warmup_ratio < 1.0:
         raise ConfigurationError("training.warmup_ratio must be in [0, 1)")
-    if model.backend not in {"transformers", "unsloth"}:
-        raise ConfigurationError("model.backend must be 'transformers' or 'unsloth'")
-    if model.load_in_4bit and model.backend != "unsloth":
-        raise ConfigurationError("model.load_in_4bit currently requires the unsloth backend")
     # Return one frozen object used unchanged by all pipeline phases.
     return RunConfig(project, model, training, evaluation)

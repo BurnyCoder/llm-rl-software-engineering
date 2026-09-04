@@ -49,4 +49,10 @@ def build_messages(task: RepairTask) -> list[dict[str, str]]:
 def render_messages(tokenizer: Any, messages: list[dict[str, str]]) -> str:
     """Apply the selected model's native chat template for local generation."""
     # `tokenize=False` returns the exact prompt text that is also written to run logs.
-    return tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+    return str(
+        tokenizer.apply_chat_template(
+            messages,
+            tokenize=False,
+            add_generation_prompt=True,
+        )
+    )

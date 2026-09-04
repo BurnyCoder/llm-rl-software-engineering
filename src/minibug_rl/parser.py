@@ -69,9 +69,12 @@ def _policy_error(tree: ast.AST) -> str | None:
     for node in ast.walk(tree):
         if isinstance(node, (ast.Import, ast.ImportFrom)):
             return "Import statements are prohibited by the task policy."
-        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
-            if node.func.id in _BANNED_CALLS:
-                return f"Call to {node.func.id!r} is prohibited by the task policy."
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id in _BANNED_CALLS
+        ):
+            return f"Call to {node.func.id!r} is prohibited by the task policy."
         if isinstance(node, ast.Attribute) and node.attr.startswith("__"):
             return "Dunder attribute access is prohibited by the task policy."
         if isinstance(node, ast.Name) and node.id == "__builtins__":

@@ -15,8 +15,6 @@ hub_model_id = "BurnyCoder/qwen2.5-coder-0.5b-swe-rl"
 dtype = "bfloat16"
 max_prompt_length = 512
 max_completion_length = 128
-backend = "transformers"
-load_in_4bit = false
 
 [training]
 seed = 42
