@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "recorded_at_utc": "2026-09-04T14:20:21Z",
+  "recorded_at_utc": "2026-09-04T14:30:11Z",
   "evidence_class": "post_run_documentation_and_artifact_audit",
   "scope": "Current claim, source-link, implementation, publication-card, exact-revision artifact, inference, and paper verification performed without rerunning training or benchmark evaluation.",
   "overall_status": "all_recorded_current_checks_passed",
@@ -15,6 +15,7 @@
     "implementation_commit": "8b53edf4e5bc0458519fac13d9b982a2e9ca75cc",
     "fact_checked_documentation_commit": "902ca72a46bbc55b3154a3e2f1cd5c8cff6ddde2",
     "final_review_resume_fix_commit": "c1f52240aeeeabccc17e05c2aa69b54ad87fcbc3",
+    "final_review_interruption_fix_commit": "091a4ee1b98bedb77e9add146b780cedfb30a50b",
     "both_commits_pushed_before_post_audit_model_inference": true
   },
   "hugging_face_card_correction": {
@@ -40,13 +41,13 @@
       "id": "static_and_unit_integration_checks",
       "status": "passed",
       "method": "Ran uv lock --check, uv sync --locked, Ruff lint and format checks, strict mypy over src, and the default pytest coverage command.",
-      "result": "Ruff and mypy passed; the default suite had 94 passes, nine intentional opt-in skips, and 71% statement coverage."
+      "result": "Ruff and mypy passed; the default suite had 96 passes, nine intentional opt-in skips, and 71% statement coverage."
     },
     {
       "id": "real_container_and_pinned_network_suite",
       "status": "passed",
       "method": "Built sandbox/Dockerfile and ran pytest with MINIBUG_RUN_DOCKER_TESTS=1 and MINIBUG_RUN_NETWORK_TESTS=1.",
-      "result": "All 103 tests passed with no skips and 71% statement coverage; zero MiniBug-named containers remained afterward."
+      "result": "All 105 tests passed with no skips and 71% statement coverage; zero MiniBug-named containers remained afterward."
     },
     {
       "id": "source_and_link_audit",
