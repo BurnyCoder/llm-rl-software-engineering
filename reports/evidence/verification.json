@@ -1,0 +1,127 @@
+{
+  "schema_version": 1,
+  "recorded_at_utc": "2026-09-04T04:41:19Z",
+  "scope": "Final verification of measured run evidence, public model loading, repository checks, documentation, and the compiled paper.",
+  "run_id": "20260904T021845Z-minibug-rl-main",
+  "overall_status": "all_recorded_checks_passed",
+  "status_vocabulary": {
+    "passed": "The named check was executed and its stated condition held."
+  },
+  "checks": [
+    {
+      "id": "run_identity",
+      "status": "passed",
+      "method": "Compared state.json identity fields with the checked source commit, curriculum, manifest, and canonical resolved configuration.",
+      "result": "Source commit 7027bc55baecc00fad51cbe2b8f030dca2c91c1e and the recorded config/data/manifest hashes agree; source_diff_sha256 is the SHA-256 of empty bytes."
+    },
+    {
+      "id": "source_published_before_run",
+      "status": "passed",
+      "method": "Compared the GitHub merge commit timestamp with the first structured run event.",
+      "result": "The GitHub merge commit is timestamped 2026-09-04T02:18:29Z; preflight began at 2026-09-04T02:19:02.012667Z."
+    },
+    {
+      "id": "structured_run_completion",
+      "status": "passed",
+      "method": "Scanned run.log for run_failed, Traceback, reward_collapse, and terminal phase events.",
+      "result": "Zero run_failed events, zero Traceback strings, and zero reward_collapse events; evaluate, export, and publish each recorded phase_complete."
+    },
+    {
+      "id": "undefined_metric_filtering",
+      "status": "passed",
+      "method": "Parsed every JSONL metric record recursively for null values.",
+      "result": "Zero null values occur in metrics.jsonl; the smoke step with undefined extrema retained its defined metrics and completed. This check does not claim that process stderr was captured by run.log."
+    },
+    {
+      "id": "evaluation_embedding",
+      "status": "passed",
+      "method": "Compared comparison.json's six embedded evaluation objects with their standalone JSON artifacts.",
+      "result": "Smoke validation, train validation, base internal test, selected internal test, base external test, and selected external test match exactly. Base validation is intentionally sourced from the baseline artifact/state rather than embedded under validation_candidates."
+    },
+    {
+      "id": "internal_record_cardinality",
+      "status": "passed",
+      "method": "Grouped every internal record by task_id, mode, and sample_index.",
+      "result": "Each of five internal artifacts has 12 task IDs and 60 records: exactly one greedy record at index 0 and sampled records at indices 0, 1, 2, and 3 for every task."
+    },
+    {
+      "id": "external_record_cardinality",
+      "status": "passed",
+      "method": "Checked uniqueness, order, and summary totals for both external artifacts.",
+      "result": "Both contain one record for every task from Python/0 through Python/163 in numeric order. Passed, failed, and timeout counts each sum to 164."
+    },
+    {
+      "id": "aggregate_recomputation",
+      "status": "passed",
+      "method": "Independently recomputed solve rates, hidden-fraction means, and status counts from individual records with Python standard-library arithmetic.",
+      "result": "Every aggregate in run-summary.json matches its authoritative evaluation records."
+    },
+    {
+      "id": "paired_task_integrity",
+      "status": "passed",
+      "method": "Compared before/after task key sets and raw record ordering.",
+      "result": "Validation, internal test, and external test key sets pair exactly; before/after raw task order also matches in each comparison."
+    },
+    {
+      "id": "bootstrap_recomputation",
+      "status": "passed",
+      "method": "Reimplemented the recorded paired bootstrap independently using sorted task IDs, after-minus-before differences, 10000 resamples, random.Random(42), and rounded empirical percentile indices.",
+      "result": "Reproduced validation 0.0625 [-0.14583333333333334, 0.2916666666666667], internal test -0.00416666666666667 [-0.2916666666666667, 0.2625], and external 0.006097560975609756 [-0.018292682926829267, 0.036585365853658534] exactly."
+    },
+    {
+      "id": "budget_lock_ordering",
+      "status": "passed",
+      "method": "Compared validation_only_complete, training_budget_locked, internal evaluation, and external evaluation event timestamps.",
+      "result": "Checkpoint 100 was locked at 2026-09-04T02:58:22.731882Z using only training/base-validation/smoke-validation/train-validation evidence. The first final internal evaluation completed later at 03:08:29.594324Z and the first external evaluation completed at 03:30:29.021977Z."
+    },
+    {
+      "id": "training_health",
+      "status": "passed",
+      "method": "Recomputed reward windows, clipping frequency, and the longest zero-reward-standard-deviation streak from checkpoint-100/trainer_state.json.",
+      "result": "100 steps completed; longest zero-variance streak was 8 below the stop threshold of 20; final streak was 0; no collapse stop occurred; four steps had a clipped completion ratio of 0.25 and none after step 50."
+    },
+    {
+      "id": "adapter_and_publish_smoke",
+      "status": "passed",
+      "method": "Read the persisted smoke, export, and publish phase results.",
+      "result": "The smoke adapter reloaded, exported adapter/merged outputs matched on reload, and a clean Hub snapshot at revision 5b6e22a4c6c01bec95d10e93a0fc78666eb9c543 completed generation after redownload."
+    },
+    {
+      "id": "evidence_json_syntax",
+      "status": "passed",
+      "method": "Parsed every reports/evidence/*.json file with jq after creation.",
+      "result": "All four evidence JSON documents parsed successfully at the recorded revision of this report bundle."
+    },
+    {
+      "id": "repository_test_suite_after_reports",
+      "status": "passed",
+      "method": "Ran uv lock --check, uv sync --locked, Ruff lint and format checks, strict mypy over src, git diff --check, and pytest with both real-Docker and pinned-network opt-ins enabled.",
+      "result": "Ruff and mypy passed; all 74 tests passed with no skips and 71% statement coverage. The run included the real internal and external Docker paths plus the pinned HumanEvalPack download check."
+    },
+    {
+      "id": "documentation_link_and_claim_check",
+      "status": "passed",
+      "method": "Cross-checked README, AGENTS, docs, reports, and paper claims against immutable evidence; parsed all local Markdown destinations; and independently checked cited remote URLs.",
+      "result": "Twelve Markdown files exposed 31 valid local destinations with none missing; cited remote URLs returned HTTP 200; artifact digests, numerical claims, commands, and caveats were reviewed and corrected where needed."
+    },
+    {
+      "id": "paper_pdf_compile",
+      "status": "passed",
+      "method": "Compiled paper/llm-swe-rl-experiment.tex with the checked LaTeX compile helper, scanned the final log for warnings, rendered every page to PNG, and visually inspected all pages.",
+      "result": "The eight-page PDF compiled without warnings or overflow, every rendered page was legible and unclipped, and output/pdf/llm-swe-rl-experiment.pdf has SHA-256 b4133cbd4063a6f5c739403a1a6be91c28ed4ee137be8324f42bae6a185e0289."
+    },
+    {
+      "id": "published_model_and_inference_examples",
+      "status": "passed",
+      "method": "Queried the public Hub revision without credentials and ran the exact README and detailed-guide inference snippets against that immutable merged model.",
+      "result": "Revision 5b6e22a4c6c01bec95d10e93a0fc78666eb9c543 is public with 17 files and both merged and adapter weights. The README returned only a fenced correct clamp_value function; the guide returned only a fenced correct absolute_value function."
+    },
+    {
+      "id": "secret_and_cleanup_check",
+      "status": "passed",
+      "method": "Verified .env is ignored and untracked, scanned the intended tree for common Hugging Face and GitHub credential forms without printing contents, and queried Docker for leftover MiniBug containers.",
+      "result": "No credential-shaped value or tracked secret file was found, and zero MiniBug containers remained after the adversarial test suite."
+    }
+  ],
+  "raw_evidence_boundary": "Raw logs, completions, caches, and model weights are intentionally not committed to the code repository. Paths and SHA-256 digests for the key result, evaluation, metric, state, decision, and trainer artifacts are recorded in run-summary.json; the resulting model is available at its immutable Hugging Face revision."
+}

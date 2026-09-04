@@ -204,6 +204,7 @@ def test_docker_command_has_all_constraints_and_no_mounts() -> None:
     assert command[-1] == "sandbox:test"
 
 
+@pytest.mark.docker
 @pytest.mark.skipif(
     os.getenv("MINIBUG_RUN_DOCKER_TESTS") != "1",
     reason="set MINIBUG_RUN_DOCKER_TESTS=1 after building the sandbox image",
