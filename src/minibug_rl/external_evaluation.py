@@ -7,8 +7,8 @@ compiled, imported, or executed by this host module.
 
 Primary sources:
 - https://github.com/bigcode-project/bigcode-evaluation-harness/blob/8fc5bae6479c4fbbb28c3f8b644f6a15b3f3b5bd/bigcode_eval/tasks/humanevalpack.py
-- https://huggingface.co/docs/transformers/main/en/main_classes/text_generation
-- https://pytorch.org/docs/stable/generated/torch.inference_mode.html
+- https://github.com/huggingface/transformers/blob/v5.16.1/src/transformers/generation/utils.py
+- https://github.com/pytorch/pytorch/blob/2b3ec34829036a65cd9d1398ea72a0167dc37470/torch/autograd/grad_mode.py
 """
 
 from __future__ import annotations
@@ -329,7 +329,7 @@ def evaluate_external(
         raise ValueError("External evaluation received no HumanEvalFix tasks")
     # The same tokenizer revision is used for base and PEFT-adapter comparisons.
     tokenizer = load_tokenizer(config)
-    # Sequential single-device loading fits the intended 8 GB consumer GPU.
+    # Sequential loading kept only one policy resident during the recorded 8 GB run.
     model = load_transformers_model(
         config,
         adapter_path=adapter_path,
@@ -338,7 +338,7 @@ def evaluate_external(
     )
     # Evaluation mode disables dropout before deterministic greedy generation.
     model.eval()
-    # The default scorer inherits the repository's hardened no-network Docker policy.
+    # The default scorer inherits the resource-limited, no-network Docker policy.
     selected_executor = executor or DockerPythonTestSandbox(image=sandbox_image)
     # Production records the stricter MiniBug deadline; injected unit fakes may omit it.
     sandbox_timeout = getattr(selected_executor, "timeout_seconds", None)
@@ -373,9 +373,35 @@ def evaluate_external(
                 temperature=config.training.temperature,
                 top_p=config.training.top_p,
             )[0]
-            # Only text postprocessing occurs on the host; compilation stays inside Docker.
-            candidate_source = build_python_candidate(task, completion)
-            execution = selected_executor.execute(task.tests, candidate_source)
+            # Persist raw model I/O before postprocessing, validation, or Docker execution.
+            generation_id = logger.generation(
+                task_id=task.id,
+                split=task.split,
+                prompt=prompt,
+                completion=completion,
+                metadata={
+                    "evaluation": label,
+                    "sample_index": 0,
+                    "prompt_tokens": prompt_tokens,
+                },
+            )
+            try:
+                # Only text postprocessing occurs on the host; compilation stays inside Docker.
+                candidate_source = build_python_candidate(task, completion)
+                execution = selected_executor.execute(task.tests, candidate_source)
+            except Exception as error:
+                logger.generation_outcome(
+                    generation_id=generation_id,
+                    task_id=task.id,
+                    split=task.split,
+                    metadata={
+                        "evaluation": label,
+                        "status": "exception",
+                        "exception_type": type(error).__name__,
+                        "error": str(error),
+                    },
+                )
+                raise
             # Preserve all evidence, including candidate failures, before aggregation.
             record = ExternalEvaluationRecord(
                 task_id=task.id,
@@ -389,12 +415,11 @@ def evaluate_external(
                 candidate_source=candidate_source,
             )
             records.append(record)
-            # Raw model input/output remain unsliced; postprocessing is separate metadata.
-            logger.generation(
+            # Link postprocessing and execution evidence to the prior complete raw text.
+            logger.generation_outcome(
+                generation_id=generation_id,
                 task_id=task.id,
                 split=task.split,
-                prompt=prompt,
-                completion=completion,
                 metadata={"evaluation": label, **asdict(record)},
             )
             # Broken isolation invalidates the run and must never lower a model's score.

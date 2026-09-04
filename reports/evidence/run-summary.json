@@ -1,7 +1,14 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "recorded_at_utc": "2026-09-04T04:18:26Z",
-  "evidence_class": "measured_completed_run",
+  "amended_at_utc": "2026-09-04T13:13:57Z",
+  "amendment": {
+    "reason": "Correct claim scope and terminology after a repository-wide documentation audit without changing any measured value.",
+    "supersedes_schema_version": 1,
+    "measured_values_changed": false,
+    "training_or_evaluation_rerun": false
+  },
+  "evidence_class": "measured_completed_run_with_audited_metadata",
   "run": {
     "id": "20260904T021845Z-minibug-rl-main",
     "diagnostic": false,
@@ -14,7 +21,8 @@
     "source_commit_utc": "2026-09-04T02:18:29+00:00",
     "source_commit_is_github_merge": true,
     "source_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "source_tree_at_run_start": "clean"
+    "source_diff_scope": ["src", "sandbox", "configs", "pyproject.toml", "uv.lock"],
+    "source_diff_interpretation": "The recorded git diff against HEAD was empty only for the listed tracked runtime-source/configuration scope. It did not inspect other tracked paths or untracked files and therefore does not prove that the entire worktree was clean."
   },
   "identity": {
     "canonical_config_sha256": "b6f27e3ab14cec6fa0f8badb2e630427a2abe5f91629ec20c441fa396c4b0e35",
@@ -38,6 +46,8 @@
   "hardware": {
     "gpu": "NVIDIA GeForce RTX 5070 Laptop GPU",
     "gpu_total_bytes": 8546484224,
+    "gpu_total_mib_reported_by_nvidia_smi": 8151,
+    "compute_capability": "12.0",
     "bf16_supported": true,
     "cuda_runtime": "13.0",
     "driver": "591.74",
@@ -80,14 +90,15 @@
     "external_benchmark_url": "https://huggingface.co/datasets/bigcode/humanevalpack/tree/9a41762f73a8cb23bb5811b73d5aab164efcf378",
     "external_subset": "Python HumanEvalFix",
     "external_tasks": 164,
-    "external_canary_passed": true
+    "external_canary_passed": true,
+    "external_canary_interpretation": "Preparation exercised the external assertion-script sandbox protocol with a synthetic canary; it did not load or score HumanEvalPack rows."
   },
   "method": {
     "trainer": "TRL GRPOTrainer with the local Transformers generation backend",
-    "trainer_documentation": "https://huggingface.co/docs/trl/grpo_trainer",
-    "lora_documentation": "https://huggingface.co/docs/peft/main/conceptual_guides/lora",
+    "trainer_documentation": "https://huggingface.co/docs/trl/v1.12.0/en/grpo_trainer",
+    "lora_documentation": "https://huggingface.co/docs/peft/v0.20.0/en/package_reference/lora",
     "reward": "Hidden unit-test pass fraction plus a full-solve bonus and structure reward, with runtime and policy penalties.",
-    "execution_boundary": "Generated repairs were executed only in the recorded Docker image, never directly on the host.",
+    "execution_boundary": "Generated repair source was never executed by the host Python process. Parser and policy rejects were scored on the host, deterministic cache hits reused earlier reward breakdowns, and only valid cache misses executed in a fresh container from the recorded image.",
     "seed": 42,
     "dtype": "bfloat16",
     "max_prompt_length": 512,
@@ -145,11 +156,25 @@
       "adapter_delta_l2": 0.28119974388470714,
       "peak_vram_bytes": 1849278976
     },
+    "reward_routing": {
+      "smoke_and_main_rollouts": 404,
+      "host_parser_or_policy_rejections": 38,
+      "deterministic_reward_cache_hits": 175,
+      "valid_cache_misses_executed_in_fresh_containers": 191,
+      "count_source": "Complete generation records for the two-step smoke and 100-step main training phases."
+    },
     "budget_decision": {
       "timestamp_utc": "20260904T025822Z",
       "decision": "stop_at_100_steps",
       "final_checkpoint": "checkpoint-100",
-      "final_benchmarks_opened_before_decision": false,
+      "final_model_outcomes_available_before_decision": false,
+      "internal_final_data_prepared_before_decision": true,
+      "external_dataset_loaded_before_decision": false,
+      "legacy_decision_artifact_field": {
+        "name": "final_benchmarks_opened_before_decision",
+        "value": false,
+        "interpretation": "The historical field meant that no final-benchmark model generations, scores, or outcomes entered the decision. It did not mean that the internal task definitions and hidden cases had never been loaded or structurally validated."
+      },
       "learning_gate_passed": true,
       "rationale": "Validation cleared the predefined improvement and reliability gate, while mean reward was nearly flat across the final two 25-step windows; an unplanned 200-step extension was not justified."
     }
@@ -161,7 +186,7 @@
       "greedy_solved": 7,
       "greedy_pass_at_1": 0.5833333333333334,
       "observed_sampled_success_at_4_tasks": 8,
-      "sampled_pass_at_4": 0.6666666666666666,
+      "observed_sampled_success_at_4": 0.6666666666666666,
       "greedy_hidden_test_fraction": 0.7708333333333334,
       "sampled_hidden_test_fraction": 0.46875,
       "status_counts": {"success": 39, "invalid_structure": 19, "runtime_error": 2, "timeout": 0, "policy_violation": 0},
@@ -171,7 +196,7 @@
       "greedy_solved": 7,
       "greedy_pass_at_1": 0.5833333333333334,
       "observed_sampled_success_at_4_tasks": 7,
-      "sampled_pass_at_4": 0.5833333333333334,
+      "observed_sampled_success_at_4": 0.5833333333333334,
       "greedy_hidden_test_fraction": 0.7708333333333334,
       "sampled_hidden_test_fraction": 0.484375,
       "status_counts": {"success": 41, "invalid_structure": 18, "runtime_error": 1, "timeout": 0, "policy_violation": 0},
@@ -181,7 +206,7 @@
       "greedy_solved": 8,
       "greedy_pass_at_1": 0.6666666666666666,
       "observed_sampled_success_at_4_tasks": 10,
-      "sampled_pass_at_4": 0.8333333333333334,
+      "observed_sampled_success_at_4": 0.8333333333333334,
       "greedy_hidden_test_fraction": 0.8333333333333334,
       "sampled_hidden_test_fraction": 0.7447916666666666,
       "status_counts": {"success": 54, "invalid_structure": 2, "runtime_error": 3, "timeout": 0, "policy_violation": 1},
@@ -197,14 +222,17 @@
     "learning_gate_passed": true
   },
   "final_internal_test": {
-    "opened_after_budget_lock": true,
+    "model_scoring_started_after_budget_lock": true,
+    "first_recorded_generation_utc": "2026-09-04T03:06:05.340667+00:00",
+    "prepared_before_budget_lock": true,
+    "used_for_training_selection_or_budget": false,
     "tasks": 12,
     "record_count_per_system": 60,
     "base": {
       "greedy_solved": 5,
       "greedy_pass_at_1": 0.4166666666666667,
       "observed_sampled_success_at_4_tasks": 10,
-      "sampled_pass_at_4": 0.8333333333333334,
+      "observed_sampled_success_at_4": 0.8333333333333334,
       "greedy_hidden_test_fraction": 0.6083333333333334,
       "sampled_hidden_test_fraction": 0.4635416666666667,
       "status_counts": {"success": 37, "invalid_structure": 19, "runtime_error": 4, "timeout": 0, "policy_violation": 0},
@@ -215,7 +243,7 @@
       "greedy_solved": 6,
       "greedy_pass_at_1": 0.5,
       "observed_sampled_success_at_4_tasks": 10,
-      "sampled_pass_at_4": 0.8333333333333334,
+      "observed_sampled_success_at_4": 0.8333333333333334,
       "greedy_hidden_test_fraction": 0.6041666666666666,
       "sampled_hidden_test_fraction": 0.628125,
       "status_counts": {"success": 50, "invalid_structure": 1, "runtime_error": 7, "timeout": 1, "policy_violation": 1},
@@ -231,8 +259,9 @@
     "interpretation": "The selected adapter solved one more task and produced far fewer malformed outputs, but average greedy partial correctness was essentially unchanged and its interval includes zero."
   },
   "external_humanevalfix": {
-    "opened_after_budget_lock": true,
-    "used_for_training_reward_or_selection": false,
+    "dataset_load_and_model_scoring_started_after_budget_lock": true,
+    "first_recorded_generation_utc": "2026-09-04T03:11:35.747352+00:00",
+    "used_for_training_reward_selection_or_budget": false,
     "generation": "one greedy candidate per task",
     "maximum_new_tokens": 256,
     "sandbox_timeout_seconds": 3.0,
@@ -245,16 +274,17 @@
     "interpretation": "The net gain is one task, but the paired interval includes zero and selected timeouts increased from three to four."
   },
   "measurement_notes": {
-    "sampled_pass_at_4": "Observed fraction of tasks with at least one full solve among exactly four recorded draws; it is not the unbiased pass@k estimator from the Codex evaluation paper.",
+    "observed_sampled_success_at_4": "Observed fraction of tasks with at least one full solve among exactly four recorded draws; it is not the unbiased pass@k estimator from the Codex evaluation paper.",
+    "legacy_raw_result_key": "Immutable raw evaluation summaries and the original Hub results.json use the historical key sampled_pass_at_4 for this same observed four-draw statistic; schema version 2 corrects only its public evidence name.",
     "hidden_test_fraction": "Mean of task- or candidate-level fractions, not a pooled ratio of individual assertions.",
     "failure_rates": "Candidate-denominator rates across greedy and sampled records together.",
-    "reported_internal_intervals": "Intervals cover paired greedy hidden-test fractions, not greedy pass@1 and not sampled metrics.",
-    "reported_external_interval": "External task scores are binary, so this interval is for the paired pass@1 difference.",
+    "reported_internal_intervals": "Paired percentile-bootstrap 95% intervals cover greedy hidden-test fractions, not greedy pass@1 and not sampled metrics.",
+    "reported_external_interval": "External task scores are binary, so this paired percentile-bootstrap 95% interval is for the pass@1 difference.",
     "pass_at_k_reference": "https://arxiv.org/abs/2107.03374"
   },
   "conclusion": {
     "headline": "After 100 GRPO steps, the selected 0.5B LoRA solved one more held-out internal repair greedily (5/12 to 6/12) and one more frozen HumanEvalFix task (37/164 to 38/164), while internal candidate failures fell from 23/60 to 10/60, largely through fewer malformed outputs.",
-    "qualification": "Average greedy internal hidden-test correctness was essentially unchanged (60.83% to 60.42%; paired 95% interval -29.17 to +26.25 percentage points), and HumanEvalFix's +0.61-point difference had a paired interval of -1.83 to +3.66 points. This run supports a functioning small-hardware RL pipeline and improved output-format reliability, not a conclusive general capability gain.",
+    "qualification": "Average greedy internal hidden-test correctness was essentially unchanged (60.83% to 60.42%; paired percentile-bootstrap 95% interval -29.17 to +26.25 percentage points), and HumanEvalFix's +0.61-point difference had a paired percentile-bootstrap interval of -1.83 to +3.66 points. This run supports a functioning small-hardware RL pipeline and an observed reduction in invalid output formatting, not a conclusive general capability gain.",
     "limitations": [
       "Only one training seed and one 100-step run were measured.",
       "The internal final test contains 12 short synthetic single-function repairs.",

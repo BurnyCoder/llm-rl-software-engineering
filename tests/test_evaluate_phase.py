@@ -1,13 +1,14 @@
 """Global context: prove checkpoint selection remains validation-only and test-blind.
 
 Sources:
-- https://en.wikipedia.org/wiki/Training,_validation,_and_test_data_sets
+- https://www.deeplearningbook.org/contents/ml.html
 - https://docs.python.org/3/library/unittest.mock.html
 """
 
 from __future__ import annotations
 
 import json
+from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
@@ -21,9 +22,11 @@ from minibug_rl.external_eval import (
     EXPECTED_TASK_COUNT,
     PROMPT_VARIANT,
 )
+from minibug_rl.metrics import EvaluationRecord, aggregate_records
 from minibug_rl.phases import evaluate as evaluate_phase
 from minibug_rl.run_logging import RunLogger
 from minibug_rl.sandbox import DEFAULT_TIMEOUT_SECONDS
+from minibug_rl.task_data import load_tasks, tasks_for_split
 
 # Phase tests use one valid immutable digest without contacting Docker.
 SANDBOX_IMAGE = "sha256:" + "d" * 64
@@ -35,23 +38,108 @@ def _result(
     solved: float,
     *,
     model: str = "Qwen/Qwen2.5-Coder-0.5B-Instruct",
+    task_ids: list[str] | None = None,
 ) -> dict[str, Any]:
-    """Build the smallest structurally valid evaluation result for phase tests."""
-    return {
-        "summary": {
+    """Build complete internal candidate evidence matching the production schema."""
+    selected_ids = task_ids if task_ids is not None else [f"task-{index}" for index in range(12)]
+    sampled_k = 2
+    solved_count = round(solved * len(selected_ids))
+    records: list[EvaluationRecord] = []
+    detailed: list[dict[str, Any]] = []
+    for task_index, task_id in enumerate(selected_ids):
+        task_solved = task_index < solved_count
+        for mode, sample_index in [("greedy", 0), *[("sampled", i) for i in range(sampled_k)]]:
+            record = EvaluationRecord(
+                task_id=task_id,
+                mode=mode,
+                sample_index=sample_index,
+                hidden_fraction=fraction,
+                solved=task_solved,
+                status="success",
+            )
+            records.append(record)
+            breakdown = {
+                "pass_fraction": fraction,
+                "solve_bonus": float(task_solved),
+                "structure_reward": 0.1,
+                "runtime_penalty": 0.0,
+                "policy_penalty": 0.0,
+                "status": "success",
+                "passed": round(fraction * 100),
+                "total_cases": 100,
+                "error": None,
+            }
+            detailed.append(
+                {
+                    **asdict(record),
+                    "reward": sum(
+                        float(breakdown[key])
+                        for key in (
+                            "pass_fraction",
+                            "solve_bonus",
+                            "structure_reward",
+                            "runtime_penalty",
+                            "policy_penalty",
+                        )
+                    ),
+                    "breakdown": breakdown,
+                    "cache_hit": False,
+                }
+            )
+    summary: dict[str, Any] = dict(aggregate_records(records, sampled_k))
+    summary.update(
+        {
             "label": label,
             "model": model,
-            "tasks": 12,
-            "greedy_hidden_test_fraction": fraction,
-            "greedy_pass_at_1": solved,
-            "invalid_structure_rate": 0.0,
-            "timeout_rate": 0.0,
-            "runtime_error_rate": 0.0,
-            "policy_violation_rate": 0.0,
-        },
-        "task_scores": {f"task-{index}": fraction for index in range(12)},
-        "records": [],
+            "sampled_k": sampled_k,
+            "duration_seconds": 0.0,
+            "peak_vram_bytes": 0,
+        }
+    )
+    return {
+        "summary": summary,
+        "task_scores": {task_id: fraction for task_id in selected_ids},
+        "records": detailed,
     }
+
+
+def _configured_test_ids(context: PipelineContext) -> list[str]:
+    """Read the exact final-task identity set that resumability must preserve."""
+    tasks = load_tasks(context.config.project.data_file)
+    return [task.id for task in tasks_for_split(tasks, "test")]
+
+
+def _resume_internal_result(
+    context: PipelineContext,
+    monkeypatch: pytest.MonkeyPatch,
+    saved_text: str,
+) -> tuple[dict[str, Any], list[str], list[Path]]:
+    """Exercise one stale internal artifact through the real resume coordinator."""
+    result_path = context.logger.directory / "evaluation-base-test-final.json"
+    result_path.write_text(saved_text, encoding="utf-8")
+    calls: list[str] = []
+
+    def fake_evaluate(
+        _config: Any,
+        _logger: Any,
+        *,
+        split: str,
+        label: str,
+        sandbox_image: str,
+        adapter_path: str | Path | None = None,
+        sampled_k: int | None = None,
+    ) -> dict[str, Any]:
+        """Return fresh evidence after the saved artifact is rejected."""
+        del adapter_path, sampled_k
+        assert split == "test"
+        assert sandbox_image == SANDBOX_IMAGE
+        calls.append(label)
+        return {"fresh": True}
+
+    monkeypatch.setattr(evaluate_phase, "evaluate_internal", fake_evaluate)
+    result = evaluate_phase._evaluate_final_once(context, label="base-test-final")
+    stale_paths = list(context.logger.directory.glob("evaluation-base-test-final.stale-*.json"))
+    return result, calls, stale_paths
 
 
 def _external_result(
@@ -157,6 +245,7 @@ def test_evaluate_selects_on_validation_before_opening_final_test(
             fractions[label],
             float(label == "selected-test-final") / 12,
             model=model,
+            task_ids=_configured_test_ids(context) if split == "test" else None,
         )
         path = context.logger.directory / f"evaluation-{label}.json"
         path.write_text(json.dumps(result), encoding="utf-8")
@@ -223,7 +312,12 @@ def test_final_test_result_file_is_reused_after_interruption(
 ) -> None:
     """Do not regenerate a completed final-test side after a later-side crash."""
     context = _context(tmp_path)
-    completed_base = _result("base-test-final", 0.20, 0.0)
+    completed_base = _result(
+        "base-test-final",
+        0.20,
+        0.0,
+        task_ids=_configured_test_ids(context),
+    )
     completed_base["summary"].update(
         {
             "split": "test",
@@ -262,7 +356,13 @@ def test_final_test_result_file_is_reused_after_interruption(
             test_calls.append(label)
         fraction = 0.40 if label.startswith("train") else 0.30
         model = context.config.model.base_model if adapter_path is None else str(adapter_path)
-        result = _result(label, fraction, 0.0, model=model)
+        result = _result(
+            label,
+            fraction,
+            0.0,
+            model=model,
+            task_ids=_configured_test_ids(context) if split == "test" else None,
+        )
         output = context.logger.directory / f"evaluation-{label}.json"
         output.write_text(json.dumps(result), encoding="utf-8")
         return result
@@ -295,6 +395,96 @@ def test_final_test_result_file_is_reused_after_interruption(
     assert external_calls == ["selected-humanevalfix"]
     assert context.state["evaluate"]["base_test"] == completed_base
     assert context.state["evaluate"]["external_base"] == completed_external
+    context.logger.close()
+
+
+@pytest.mark.parametrize(
+    "corruption",
+    [
+        "empty-records",
+        "missing-sampled-record",
+        "mismatched-task-score",
+        "oversized-duration",
+    ],
+)
+def test_incomplete_internal_result_is_preserved_as_stale_and_recomputed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    corruption: str,
+) -> None:
+    """Reject missing or internally inconsistent candidate-level final evidence."""
+    context = _context(tmp_path)
+    task_ids = _configured_test_ids(context)
+    stale = _result("base-test-final", 0.20, 0.0, task_ids=task_ids)
+    stale["summary"].update(
+        {
+            "split": "test",
+            "base_revision": context.config.model.revision,
+            "sandbox_image": SANDBOX_IMAGE,
+        }
+    )
+    if corruption == "empty-records":
+        stale["records"] = []
+    elif corruption == "missing-sampled-record":
+        stale["records"].pop()
+    elif corruption == "mismatched-task-score":
+        stale["task_scores"][task_ids[0]] = 0.99
+    else:
+        # This remains valid JSON but overflows Python's int-to-float conversion.
+        stale["summary"]["duration_seconds"] = 10**400
+    result, calls, stale_paths = _resume_internal_result(
+        context,
+        monkeypatch,
+        json.dumps(stale),
+    )
+
+    assert result == {"fresh": True}
+    assert calls == ["base-test-final"]
+    assert len(stale_paths) == 1
+    context.logger.close()
+
+
+def test_truncated_internal_result_is_preserved_as_stale_and_recomputed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Recover from a legacy or interrupted non-atomic internal result write."""
+    context = _context(tmp_path)
+    truncated = '{"summary":'
+    result, calls, stale_paths = _resume_internal_result(context, monkeypatch, truncated)
+    assert result == {"fresh": True}
+    assert calls == ["base-test-final"]
+    assert len(stale_paths) == 1
+    assert stale_paths[0].read_text(encoding="utf-8") == truncated
+    context.logger.close()
+
+
+def test_final_test_result_with_wrong_same_count_ids_is_stale_and_recomputed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Reject stale evidence whose score count matches but task identities do not."""
+    context = _context(tmp_path)
+    wrong_ids = _configured_test_ids(context)
+    wrong_ids[-1] = "stale-test-task-with-the-right-count"
+    stale = _result("base-test-final", 0.20, 0.0, task_ids=wrong_ids)
+    stale["summary"].update(
+        {
+            "split": "test",
+            "base_revision": context.config.model.revision,
+            "sandbox_image": SANDBOX_IMAGE,
+            "sampled_k": context.config.evaluation.sample_generations,
+        }
+    )
+    result, calls, stale_paths = _resume_internal_result(
+        context,
+        monkeypatch,
+        json.dumps(stale),
+    )
+
+    assert result == {"fresh": True}
+    assert calls == ["base-test-final"]
+    assert len(stale_paths) == 1
     context.logger.close()
 
 

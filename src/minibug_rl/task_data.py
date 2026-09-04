@@ -1,9 +1,9 @@
-"""Global context: validate and load the frozen clean-room MiniBug curriculum.
+"""Global context: validate and load the frozen repository-authored MiniBug curriculum.
 
 Sources:
 - https://docs.python.org/3/library/json.html
 - https://docs.python.org/3/library/ast.html
-- https://huggingface.co/docs/trl/main/en/dataset_formats
+- https://github.com/huggingface/trl/blob/v1.12.0/trl/trainer/utils.py
 """
 
 from __future__ import annotations

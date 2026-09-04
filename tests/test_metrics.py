@@ -2,7 +2,7 @@
 
 Sources:
 - https://arxiv.org/abs/2107.03374
-- https://docs.python.org/3/library/random.html
+- https://docs.python.org/3.12/library/random.html
 """
 
 import pytest
@@ -26,7 +26,7 @@ def test_aggregate_records_reports_pass_at_one_and_observed_pass_at_k() -> None:
 
     assert summary["tasks"] == 2
     assert summary["greedy_pass_at_1"] == pytest.approx(0.5)
-    assert summary["sampled_pass_at_2"] == pytest.approx(0.5)
+    assert summary["observed_sampled_success_at_2"] == pytest.approx(0.5)
     assert summary["greedy_hidden_test_fraction"] == pytest.approx(0.75)
     assert summary["invalid_structure_rate"] == pytest.approx(1 / 6)
 

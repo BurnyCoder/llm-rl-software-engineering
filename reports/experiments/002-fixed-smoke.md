@@ -1,6 +1,6 @@
 # Experiment 002: corrected two-step smoke gate
 
-**Classification:** prespecified systems gate inside the completed run
+**Classification:** systems gate pre-specified in producing commit `7027bc5`
 
 **Run:** `20260904T021845Z-minibug-rl-main`
 
@@ -16,16 +16,16 @@ The hypothesis was deliberately narrow: two GRPO steps should change trainable t
 
 ## Locked inputs
 
-The final run began 33 seconds after its source became GitHub merge commit `7027bc5`. The state recorded a clean source tree and the following identities:
+The final run began 33 seconds after its source became GitHub merge commit `7027bc5`. The state recorded an empty tracked diff against that commit for `src`, `sandbox`, `configs`, `pyproject.toml`, and `uv.lock`; it did not establish that other tracked paths or untracked files were clean. It also recorded the following identities:
 
 - canonical configuration: `b6f27e3ab14cec6fa0f8badb2e630427a2abe5f91629ec20c441fa396c4b0e35`;
 - corrected 60-task curriculum: `f5049138a16269a064ec3488481223bc0b611fd416ab88ee3bec5f84291e0aeb`;
 - schema-v2 split manifest: `9e30a088c50634c78dbb4e547e97dc4bf20b4518df5b88f9a00539e4c8968549`;
 - prepared sandbox: `sha256:a869cd1dffb8c87afad1bb1302106cb9f5cb580641c7391bb73f4ab077f140d9`.
 
-Preparation reported 36 training, 12 validation, and 12 final-test tasks. It checked all 60 buggy functions against hidden tests, ran the structural cross-split curriculum audit, passed the internal sandbox canary, and passed the external benchmark canary. The same sandbox digest is present in smoke training and every subsequent evaluation summary.
+Preparation reported 36 training, 12 validation, and 12 final-test tasks. It structurally loaded all 60 tasks and ran each original buggy function against hidden tests, including the internal final split, before training. This preparation did not produce model scores for the final split. It also ran the structural cross-split curriculum audit, passed the internal sandbox canary, and passed a synthetic canary for the external assertion-script protocol; the latter did not load HumanEvalPack. The same sandbox digest is present in smoke training and every subsequent evaluation summary.
 
-The base model was `Qwen/Qwen2.5-Coder-0.5B-Instruct` at immutable revision `ea3f2471cf1b1f0db85067f1ef93848e38e88c25`. The smoke phase derived its bounded settings from the committed main configuration: two steps, two generations, batch size one, gradient accumulation two, maximum completion length 128, seed 42, BF16, learning rate `1e-5`, rank-16 LoRA, and alpha 32. This follows the same core [`GRPOTrainer`](https://huggingface.co/docs/trl/grpo_trainer) and [PEFT LoRA](https://huggingface.co/docs/peft/main/conceptual_guides/lora) APIs as the main run.
+The base model was `Qwen/Qwen2.5-Coder-0.5B-Instruct` at immutable revision `ea3f2471cf1b1f0db85067f1ef93848e38e88c25`. The smoke phase derived its bounded settings from the committed main configuration: two steps, two generations, batch size one, gradient accumulation two, maximum completion length 128, seed 42, BF16, learning rate `1e-5`, rank-16 LoRA, and alpha 32. This follows the same core [TRL 1.12.0 `GRPOTrainer`](https://huggingface.co/docs/trl/v1.12.0/en/grpo_trainer) and [PEFT 0.20.0 LoRA](https://huggingface.co/docs/peft/v0.20.0/en/package_reference/lora) APIs as the main run.
 
 ## Results
 
@@ -46,7 +46,7 @@ The base model was `Qwen/Qwen2.5-Coder-0.5B-Instruct` at immutable revision `ea3
 
 The full step records explain the maximum clipped ratio. Step 1 generated terminated completions of 40 and 83 tokens, reward mean `0.9`, and reward standard deviation `1.6971`. At step 2 both generations reached the 128-token smoke ceiling, so `completions/clipped_ratio` was 1.0; both were invalid, giving reward `-0.3` and zero standard deviation. This isolated bad batch reset neither the adapter proof nor the safety gate: the configured stop requires 20 consecutive logs whose zero-standard-deviation group fraction exceeds 0.8.
 
-The filtered Trackio callback preserved every defined metric. In particular, the undefined step-2 clipping extrema were absent rather than serialized as null, all persisted metric JSON remained finite, and the training phase completed. The structured log contains no `run_failed`, `Traceback`, or `reward_collapse` event. Because process stderr is not part of `run.log`, the stronger supported claim is that the undefined values were filtered and the run completed, not that every possible third-party diagnostic stream was archived.
+The filter passed only defined metric values to Trackio. In the separately persisted `metrics.jsonl`, the undefined step-2 clipping extrema were absent rather than serialized as null, every numeric value was finite, and the training phase completed. The structured log contains no `run_failed`, `Traceback`, or `reward_collapse` event. Because process stderr and an immutable Trackio export are absent from the evidence bundle, this supports the local metric and completion claims, not remote Trackio completeness or archival of every third-party diagnostic stream.
 
 When both adapters were later evaluated on the validation split, the smoke adapter matched the base on deterministic quality:
 

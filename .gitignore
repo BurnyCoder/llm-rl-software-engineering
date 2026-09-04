@@ -20,6 +20,8 @@ checkpoints/
 dist/
 build/
 output/pdf/*.aux
+output/pdf/*.fdb_latexmk
+output/pdf/*.fls
 output/pdf/*.log
 output/pdf/*.out
 output/pdf/*.synctex.gz

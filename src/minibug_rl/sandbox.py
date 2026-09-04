@@ -1,4 +1,4 @@
-"""Global context: safely broker model-produced Python through disposable Docker.
+"""Global context: broker model-produced Python through disposable Docker.
 
 MiniBug expected values stay in this trusted host process and only call inputs cross
 the boundary. External evaluation sends hidden assertion scripts to the container but
@@ -8,8 +8,8 @@ is the execution boundary.
 Sources:
 - https://docs.docker.com/reference/cli/docker/container/run/
 - https://docs.docker.com/engine/network/drivers/none/
-- https://docs.python.org/3/library/subprocess.html#subprocess.Popen.communicate
-- https://docs.python.org/3/library/ast.html
+- https://docs.python.org/3.12/library/subprocess.html#subprocess.Popen.communicate
+- https://docs.python.org/3.12/library/ast.html
 """
 
 from __future__ import annotations
@@ -30,7 +30,7 @@ from minibug_rl.schemas import SandboxExecution, TestCase
 DEFAULT_IMAGE = "minibug-rl-sandbox:local"
 # Three seconds bounds Docker startup plus candidate execution on the host clock.
 DEFAULT_TIMEOUT_SECONDS = 3.0
-# The image protocol itself uses this limit; repeat it here before JSON parsing.
+# Apply the image's protocol limit after pipe collection and before JSON parsing.
 MAX_PROTOCOL_BYTES = 512 * 1024
 # Match the runner's fixed standard-input budget before starting a container.
 MAX_REQUEST_BYTES = 256 * 1024
@@ -87,13 +87,13 @@ def build_docker_command(
     image: str = DEFAULT_IMAGE,
     docker_binary: str = "docker",
 ) -> list[str]:
-    """Build the inspectable no-mount Docker command for one candidate."""
+    """Build a Docker command with no host bind/volume mounts and one tmpfs."""
     # Docker documents each flag on the container-run reference linked above.
     return [
         docker_binary,
         "run",
         "--rm",
-        # Keep stdin attached so the request can cross the boundary without a mount.
+        # Keep stdin attached so the request crosses without a host bind or volume.
         "--interactive",
         "--name",
         container_name,
@@ -180,7 +180,7 @@ def _cleanup_container(docker_binary: str, container_name: str) -> None:
 
 
 def _parse_response(stdout: bytes) -> dict[str, Any]:
-    """Validate that the isolated runner returned one bounded JSON object."""
+    """Validate the collected response size and require one JSON status object."""
     if len(stdout) > MAX_PROTOCOL_BYTES:
         raise ValueError("sandbox response exceeds the host output limit")
     response = json.loads(stdout)
@@ -196,7 +196,7 @@ def run_json_container(
     docker_binary: str = "docker",
     timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS,
 ) -> JsonContainerExecution:
-    """Exchange one bounded JSON object with the shared isolated runner image."""
+    """Send a pre-bounded request and post-validate the collected runner response."""
     # A monotonic clock cannot move backward if the system time changes during a run.
     started = time.monotonic()
     try:
@@ -245,7 +245,7 @@ def run_json_container(
             duration_seconds=time.monotonic() - started,
         )
     try:
-        # Python's documented communication API avoids pipe deadlocks while waiting.
+        # ``communicate`` avoids pipe deadlocks but buffers stdout before our size check.
         stdout, stderr = process.communicate(
             input=request_bytes,
             timeout=timeout_seconds,
@@ -256,7 +256,7 @@ def run_json_container(
         # Docker cleanup may already have caused the client process to exit.
         with contextlib.suppress(ProcessLookupError):
             process.kill()
-        # The second call reaps the child and drains its bounded diagnostic pipes.
+        # The second call reaps the child; only the retained decoded diagnostic is bounded.
         _stdout, stderr = process.communicate()
         return JsonContainerExecution(
             status="timeout",
@@ -274,7 +274,7 @@ def run_json_container(
             duration_seconds=time.monotonic() - started,
         )
     try:
-        # The parser admits exactly one bounded status object from trusted stdout.
+        # The parser applies the post-collection limit and admits one status object.
         response = _parse_response(stdout)
     except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as error:
         return JsonContainerExecution(
@@ -294,7 +294,7 @@ def run_json_container(
 
 @dataclass(frozen=True, slots=True)
 class DockerSandbox:
-    """Execute each candidate in a newly named, resource-limited container."""
+    """Reject invalid text host-side and isolate accepted candidates in fresh containers."""
 
     image: str = DEFAULT_IMAGE
     docker_binary: str = "docker"

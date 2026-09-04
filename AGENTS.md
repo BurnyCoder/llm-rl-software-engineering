@@ -25,7 +25,7 @@ Keep implementation details in their existing modules:
 - `task_data.py` validates curriculum and structural split manifests.
 - `prompts.py` is the sole internal prompt builder.
 - `parser.py` provides pre-container syntax and policy checks.
-- `sandbox.py` owns the shared hardened Docker transport and host-only answer comparison.
+- `sandbox.py` owns the shared resource-limited Docker transport and host-only answer comparison.
 - `external_eval.py` pins/converts HumanEvalFix without executing it.
 - `external_sandbox.py` maps assertion-script container replies to evaluation outcomes.
 - `reward.py` owns the single reward definition used by training and internal scoring.
@@ -41,26 +41,26 @@ Do not duplicate parsing, scoring, sandbox command construction, model loading, 
 
 - Pin the base model and external dataset with full immutable Hub commit SHAs.
 - Record the resolved Docker image ID and pass that ID—not a mutable tag—to every reward/evaluation call.
-- Keep all expected MiniBug outputs in the host process. Only candidate source and JSON call inputs may enter the internal sandbox request.
-- Keep external hidden assertions out of model prompts. They may enter only the versioned Docker assertion-script request.
-- Training may use train tasks only. Validation may choose the checkpoint and budget only. Internal final and HumanEvalFix may not influence model choice, hyperparameters, reward design, or restarts.
+- Keep all expected MiniBug outputs in the host process. Only candidate source, the public function name, and JSON call inputs may enter the internal sandbox request.
+- Keep external benchmark assertions out of model prompts. They may enter only the versioned Docker assertion-script request.
+- Training may use train tasks only. Validation may choose the checkpoint and budget only. Internal-final and HumanEvalFix model outcomes may not influence model choice, hyperparameters, reward design, or restarts; structural and sandbox-canary validation may cover all internal splits before training.
 - Set seeds before model/adapter construction and reset evaluation seeds per task for paired comparisons.
 - Preserve one greedy candidate and exactly the configured sampled indices per internal task. Label the four-sample metric “observed sampled success@4,” not an unbiased pass@k estimator.
-- Treat Docker/protocol failures as invalid experiment infrastructure. Candidate syntax, assertion, runtime, policy, and timeout outcomes remain model outcomes.
+- Treat Docker/protocol failures as invalid experiment infrastructure. Candidate syntax, assertion, runtime, policy, and timeout outcomes remain model outcomes; cleanup is best-effort and must be checked separately after abnormal exits.
 - Stop rather than publish if training does not reach the expected step, produces non-finite values, changes no LoRA tensor, loses reward variance for the configured collapse streak, or fails adapter reload.
 - Report all point estimates, failure categories, paired intervals, regressions, and protocol deviations. A passed point-estimate gate is not statistical significance.
 - Describe Docker as defense in depth, not a perfect hostile-code security boundary.
 
 ## Data changes
 
-`data/minibug_tasks.json` contains original tasks with no gold repairs. Any curriculum edit requires all of the following before training:
+`data/minibug_tasks.json` contains repository-authored tasks with no gold repairs. Any curriculum edit requires all of the following before training:
 
 1. Add or update tests first.
 2. Regenerate the structural manifest only through the reviewed curriculum tooling.
 3. Verify exact IDs/counts and the 36/12/12 split.
 4. Verify no normalized structural fingerprint crosses a split.
 5. Verify no public case exactly duplicates a hidden case.
-6. Execute every original bug in the real immutable container and prove at least one hidden failure per task.
+6. Execute every repository-authored buggy program in the real immutable container and prove at least one hidden failure per task.
 7. Review prompts and logs to prove hidden expected values are absent.
 
 The schema, fingerprints, and leakage rationale belong in `data/README.md`; do not repeat them elsewhere.
@@ -117,4 +117,4 @@ Do not leave TODOs, placeholders, stale “in progress” statements, or claims 
 
 Work on a named branch, split commits by coherent function, open a pull request, wait for CI, review the diff, merge it, and verify local `main` equals `origin/main`. Do not commit generated local artifacts except the intentionally tracked evidence JSON and final PDF. Scan tracked files for credential-like strings before every push.
 
-Publication requires the user-authorized `HF_TOKEN` from a mode-600 ignored `.env`. Upload only `artifacts/final/hub`, retain the returned Hub commit SHA, re-download that exact revision to a fresh directory, compare weight hashes, load the root model, and log a non-empty generation before recording publication complete.
+Publication requires the user-authorized `HF_TOKEN` from a mode-600 ignored `.env`. Upload only `artifacts/final/hub`, retain the returned Hub commit SHA, re-download that exact revision to a fresh directory, require identical paths and SHA-256 values for every Safetensors file, load the root model, and log a non-empty generation before recording publication complete.

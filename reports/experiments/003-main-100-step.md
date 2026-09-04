@@ -10,28 +10,28 @@
 
 ## Domain, question, and hypothesis
 
-The domain is outcome-supervised reinforcement learning for small language-model software repair. Each example asks the model to replace one short buggy Python function. Four completions form a GRPO comparison group, and a Docker-isolated hidden-test result supplies the outcome reward.
+The domain is outcome-supervised reinforcement learning for small language-model, single-function Python repair. Each example asks the model to replace one short buggy function. Four completions form a GRPO comparison group. Every completion receives the same composite reward definition: host-side parser/policy rejects receive fixed penalties, deterministic cache hits reuse a prior breakdown, and valid cache misses obtain hidden-test results from a fresh Docker container.
 
 The primary question was: can a 0.5B instruction-tuned code model acquire measurable repair behavior in 100 local GRPO steps on an 8 GB laptop GPU without persistent reward collapse or unusable generation truncation?
 
-Before final-test access, the operational hypothesis was defined by the validation gate: relative to the untouched base, the selected adapter must either improve mean paired greedy hidden-test fraction by at least 0.05 or gain at least one net greedy full solve, and its total candidate failure rate must not be worse. The final internal and HumanEvalFix sets were not part of this hypothesis test or the training-budget decision.
+Before final model scoring, the operational hypothesis was defined by the validation gate pre-specified in producing commit [`7027bc5`](https://github.com/BurnyCoder/llm-rl-software-engineering/commit/7027bc55baecc00fad51cbe2b8f030dca2c91c1e): relative to the base, the selected adapter must either improve mean paired greedy hidden-test fraction by at least 0.05 or gain at least one net greedy full solve, and its total candidate failure rate must not be worse. Internal final task definitions had already been structurally checked, but no final model generations, scores, or outcomes—and no HumanEvalPack rows—entered this hypothesis test or the training-budget decision.
 
 ## Existing information and design choices
 
-The public [TRL GRPO documentation](https://huggingface.co/docs/trl/grpo_trainer) provides the `GRPOConfig`/`GRPOTrainer`, grouped generations, reward-function, PEFT, and sampling interfaces used here. [PEFT's LoRA guide](https://huggingface.co/docs/peft/main/conceptual_guides/lora) motivates freezing base weights and training small low-rank matrices, which is the key hardware-saving choice.
+The versioned [TRL 1.12.0 GRPO documentation](https://huggingface.co/docs/trl/v1.12.0/en/grpo_trainer) provides the `GRPOConfig`/`GRPOTrainer`, grouped generations, reward-function, PEFT, and sampling interfaces used here. [PEFT 0.20.0's LoRA API](https://huggingface.co/docs/peft/v0.20.0/en/package_reference/lora) documents the low-rank adapter configuration used to freeze base weights and limit trainable parameters.
 
-The experiment used the smallest base model in the referenced DebugArena-style recipe, [`Qwen/Qwen2.5-Coder-0.5B-Instruct`](https://huggingface.co/Qwen/Qwen2.5-Coder-0.5B-Instruct/tree/ea3f2471cf1b1f0db85067f1ef93848e38e88c25), but used the installed standard Transformers/PEFT backend instead of depending on Unsloth. Preflight measured BF16 support and 6,225,395,712 free bytes after model loading, so no 4-bit quantization was needed. This keeps the implementation smaller and avoids conflating quantization effects with the first RL result.
+The experiment used the 0.49B-parameter base named in the pinned [DebugArena card](https://huggingface.co/BharathVikas/debugarena/blob/e4be134207727d684b8a7edfbc7934159893617b/README.md), [`Qwen/Qwen2.5-Coder-0.5B-Instruct`](https://huggingface.co/Qwen/Qwen2.5-Coder-0.5B-Instruct/blob/ea3f2471cf1b1f0db85067f1ef93848e38e88c25/README.md), but used the installed standard Transformers/PEFT backend instead of depending on Unsloth. Preflight measured BF16 support and 6,225,395,712 free bytes after model loading; the completed run therefore did not use 4-bit quantization. This avoids mixing a quantization change into this measured run.
 
 The locked settings were:
 
 | Parameter | Value | Reason for the starter experiment |
 |---|---:|---|
-| Seed | 42 | One deterministic recorded run; replication remains future work. |
+| Seed | 42 | One seeded recorded run; exact determinism across stacks is not claimed. |
 | Steps | 100 | Small enough for one local run, long enough to revisit 36 training tasks for 2.78 reported epochs. |
 | Generations per group | 4 | Provides within-prompt reward comparison while fitting memory. |
 | Batch / accumulation | 1 / 4 | Keeps instantaneous memory low while accumulating four optimizer microsteps. |
-| Learning rate | `1e-5` | Conservative LoRA update scale used in the referenced tiny GRPO recipe. |
-| Sampling | temperature 0.9, top-p 0.95 | Produces diverse group candidates for outcome comparison. |
+| Learning rate | `1e-5` | Matches the value shown in the pinned DebugArena starter recipe. |
+| Sampling | temperature 0.9, top-p 0.95 | Allows stochastic variation among group candidates; diversity was not measured. |
 | Prompt / completion cap | 512 / 256 | Covers the measured 146–240-token training prompts and bounds rollout cost. |
 | LoRA rank / alpha | 16 / 32 | Trains 8,798,208 parameters, 1.7497% of the reported 502,830,976 total. |
 | Warmup / max grad norm | 0.05 / 0.1 | Bounds the early schedule and update norm. |
@@ -41,7 +41,7 @@ These are feasibility settings, not a hyperparameter optimum. No sweep was condu
 
 ## Training observations
 
-The trainer completed all 100 steps in 1,174.0846 seconds. Peak allocated VRAM was 1,849,278,976 bytes. All 336 tracked trainable tensors changed, with aggregate adapter L2 delta `0.2811997439`. Mean trainer loss was `0.0179620331`; because GRPO loss is a relative policy objective that can be negative per step, its small magnitude is not itself a correctness score.
+The trainer completed all 100 steps in 1,174.0846 seconds. Peak allocated VRAM was 1,849,278,976 bytes. All 336 tracked trainable tensors changed, with aggregate adapter L2 delta `0.2811997439`. Mean trainer loss was `0.0179620331`; because GRPO loss is a relative policy objective that can be negative per step, its small magnitude is not itself a correctness score. Across the two-step smoke and main training, 404 rollout records comprised 38 host-side structural rejects, 175 deterministic reward-cache hits, and 191 valid cache misses executed in fresh containers; the complete count is recorded in [`run-summary.json`](../evidence/run-summary.json).
 
 The persisted reward history gives a clearer training diagnostic:
 
@@ -71,15 +71,15 @@ After training, both independent adapters were evaluated on the same 12-task val
 | Policy violations | 0/60 | 0/60 | 1/60 |
 | Total failures | 21/60 | 19/60 | 6/60 |
 
-The deterministic selection key was `(greedy_hidden_test_fraction, greedy_pass_at_1)`, so the 100-step adapter beat the smoke adapter. Against base, its mean paired greedy hidden-fraction difference was `+0.0625`; a 10,000-sample paired bootstrap with seed 42 gave a 95% interval of `[-0.1458, +0.2917]`. It gained two full solves (`validation_transpose_042`, `validation_longest_word_040`), lost one (`validation_mode_046`), and therefore gained one net solve. Failure rate fell from 0.35 to 0.10.
+The deterministic selection key was `(greedy_hidden_test_fraction, greedy_pass_at_1)`, so the 100-step adapter beat the smoke adapter. Against base, its mean paired greedy hidden-fraction difference was `+0.0625`; a 10,000-sample paired percentile bootstrap with seed 42 gave a 95% interval of `[-0.1458, +0.2917]`. It gained two full solves (`validation_transpose_042`, `validation_longest_word_040`), lost one (`validation_mode_046`), and therefore gained one net solve. Failure rate fell from 0.35 to 0.10.
 
 The predefined gate passed through both improvement clauses—mean difference at least 0.05 and net solved gain at least one—and through the reliability clause. The wide interval still includes zero, so validation supports the operational gate but is not conclusive population-level evidence.
 
 ## Budget decision and refined hypothesis
 
-The last two reward windows were almost flat, 1.5230 then 1.5355. Since checkpoint 100 had already passed the validation gate, extending to 200 steps after inspecting these values would have added an unregistered adaptive choice without clear diagnostic justification. At `20260904T025822Z`, the experiment therefore locked `checkpoint-100` and recorded that neither final benchmark had been opened.
+The last two reward windows were close, 1.5230 then 1.5355. Since checkpoint 100 had already passed the validation gate, extending to 200 steps after inspecting these values would have added an unplanned adaptive choice without clear diagnostic justification. At `20260904T025822Z`, the experiment therefore locked `checkpoint-100`. The decision artifact's legacy field `final_benchmarks_opened_before_decision: false` meant that no final model generations, scores, or outcomes were available; internal final data had already been loaded and structurally validated, while HumanEvalPack loading occurred later.
 
-The refined question for Experiment 004 became narrower: does the validation-selected checkpoint retain any improvement on untouched internal tasks and on a frozen public repair benchmark, and which failure modes change? No further weight update or hyperparameter change followed the lock.
+The refined question for Experiment 004 became narrower: does the validation-selected checkpoint retain any improvement on internal tasks held out from optimization and selection and on a frozen public repair benchmark, and which failure modes change? No further weight update or hyperparameter change followed the lock.
 
 ## Limitations
 

@@ -1,5 +1,5 @@
 # Global context: primary measured RTX 5070 Laptop 8 GB GRPO profile.
-# Sources: https://huggingface.co/docs/trl/grpo_trainer and https://arxiv.org/abs/2605.30478
+# Sources: https://github.com/huggingface/trl/blob/v1.12.0/trl/trainer/grpo_trainer.py and https://arxiv.org/abs/2605.30478
 
 [project]
 name = "minibug-rl-main"

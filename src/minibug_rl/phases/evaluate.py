@@ -1,7 +1,7 @@
-"""Global context: select on validation, then open final test once for paired comparison.
+"""Global context: select on validation, then score each final benchmark once.
 
 Sources:
-- https://en.wikipedia.org/wiki/Training,_validation,_and_test_data_sets
+- https://www.deeplearningbook.org/contents/ml.html
 - https://docs.python.org/3/library/statistics.html
 """
 
@@ -12,11 +12,12 @@ from pathlib import Path
 from typing import Any, cast
 
 from minibug_rl.context import PipelineContext
-from minibug_rl.evaluation import evaluate_internal
+from minibug_rl.evaluation import evaluate_internal, internal_result_is_complete
 from minibug_rl.external_evaluation import evaluate_external, external_result_is_complete
 from minibug_rl.metrics import paired_bootstrap_interval
 from minibug_rl.run_logging import utc_timestamp
 from minibug_rl.sandbox import DEFAULT_TIMEOUT_SECONDS
+from minibug_rl.task_data import load_tasks, tasks_for_split
 
 
 def _selection_key(result: dict[str, Any]) -> tuple[float, float]:
@@ -43,25 +44,25 @@ def _evaluate_final_once(
     """Reuse a complete final-test result file after an interrupted phase rerun."""
     result_path = context.logger.directory / f"evaluation-{label}.json"
     if result_path.exists():
-        loaded = json.loads(result_path.read_text(encoding="utf-8"))
-        summary = loaded.get("summary") if isinstance(loaded, dict) else None
-        scores = loaded.get("task_scores") if isinstance(loaded, dict) else None
-        if not isinstance(summary, dict) or not isinstance(scores, dict):
-            raise ValueError(f"Saved final-test result {result_path} is malformed")
+        try:
+            loaded = json.loads(result_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            # Legacy non-atomic writes may be truncated; preserve them like other stale evidence.
+            loaded = None
+        test_tasks = tasks_for_split(load_tasks(context.config.project.data_file), "test")
+        expected_task_ids = {task.id for task in test_tasks}
         expected_model = (
             str(adapter_path) if adapter_path is not None else context.config.model.base_model
         )
-        reusable = (
-            summary.get("label") == label
-            and summary.get("split") == "test"
-            and summary.get("model") == expected_model
-            and summary.get("base_revision") == context.config.model.revision
-            and summary.get("sandbox_image") == context.prepared_sandbox_image()
-            and summary.get("sampled_k") == context.config.evaluation.sample_generations
-            and summary.get("tasks") == 12
-            and len(scores) == 12
-        )
-        if reusable:
+        if internal_result_is_complete(
+            loaded,
+            label=label,
+            model=expected_model,
+            base_revision=context.config.model.revision,
+            sandbox_image=context.prepared_sandbox_image(),
+            sampled_k=context.config.evaluation.sample_generations,
+            expected_task_ids=expected_task_ids,
+        ):
             context.logger.message(
                 "final_test_reused",
                 f"Reusing completed final-test evidence for {label}.",
@@ -130,7 +131,7 @@ def _evaluate_external_once(
 
 
 def run_evaluate(context: PipelineContext) -> dict[str, Any]:
-    """Choose smoke/main adapter on validation and compare the winner on untouched test."""
+    """Choose on validation and compare the winner on decision-isolated final tasks."""
     logger = context.logger
     logger.message("phase_start", "Selecting and evaluating trained adapters.", phase="evaluate")
     if "baseline" not in context.state:

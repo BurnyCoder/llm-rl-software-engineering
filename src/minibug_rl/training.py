@@ -1,9 +1,10 @@
 """Global context: construct and run current TRL GRPO with a trainable LoRA adapter.
 
 Sources:
-- https://huggingface.co/docs/trl/grpo_trainer
-- https://huggingface.co/docs/trl/main/en/peft_integration
-- https://huggingface.co/docs/peft/package_reference/lora
+- https://github.com/huggingface/trl/blob/v1.12.0/trl/trainer/grpo_trainer.py
+- https://github.com/huggingface/trl/blob/v1.12.0/trl/trainer/grpo_config.py
+- https://github.com/huggingface/peft/blob/v0.20.0/src/peft/tuners/lora/config.py
+- https://docs.python.org/3.12/library/math.html#math.isfinite
 """
 
 from __future__ import annotations
@@ -12,6 +13,7 @@ import gc
 import json
 import math
 import os
+from numbers import Real
 from pathlib import Path
 from typing import Any
 
@@ -116,6 +118,41 @@ def _logged_values(history: list[dict[str, Any]], key: str) -> list[float]:
     ]
 
 
+def _numeric_metrics(values: dict[str, Any]) -> dict[str, float]:
+    """Normalize ordinary real-valued trainer metrics without treating flags as numbers."""
+    # The real-number ABC also covers NumPy scalar metrics emitted by integrations.
+    return {
+        key: float(value)
+        for key, value in values.items()
+        if isinstance(value, Real) and not isinstance(value, bool)
+    }
+
+
+def _require_finite_training_evidence(
+    history: list[dict[str, Any]],
+    training_loss: float,
+    adapter_delta_l2: float,
+) -> None:
+    """Reject every non-finite final numeric value before saving the public adapter."""
+    # Record locations rather than values so the error remains strict-JSON-safe.
+    non_finite = [
+        f"history[{record_index}].{metric_name}"
+        for record_index, record in enumerate(history)
+        for metric_name, metric_value in _numeric_metrics(record).items()
+        if not math.isfinite(metric_value)
+    ]
+    # The aggregate loss can be absent from individual history records.
+    if not math.isfinite(training_loss):
+        non_finite.append("training_loss")
+    # A non-finite parameter delta is direct evidence of corrupt trainable weights.
+    if not math.isfinite(adapter_delta_l2):
+        non_finite.append("adapter_delta_l2")
+    if non_finite:
+        raise RuntimeError(
+            "Training produced non-finite numeric evidence: " + ", ".join(non_finite)
+        )
+
+
 def _trainable_snapshot(model: Any) -> dict[str, torch.Tensor]:
     """Copy small LoRA tensors to CPU so a completed run can prove an update occurred."""
     return {
@@ -144,7 +181,7 @@ def _adapter_change(
 
 
 class AuditCallback(TrainerCallback):
-    """Mirror trainer metrics and stop a persistently signal-free GRPO run."""
+    """Mirror finite metrics and stop non-finite or persistently signal-free runs."""
 
     def __init__(self, logger: RunLogger, zero_variance_limit: int = 20) -> None:
         """Store the run logger and consecutive zero-variance health threshold."""
@@ -152,6 +189,9 @@ class AuditCallback(TrainerCallback):
         self.zero_variance_limit = zero_variance_limit
         self.zero_variance_streak = 0
         self.stopped_for_reward_collapse = False
+        # Names preserve actionable evidence without serializing invalid JSON numbers.
+        self.non_finite_metric_names: list[str] = []
+        self.stopped_for_non_finite_metrics = False
 
     def on_log(
         self,
@@ -161,20 +201,32 @@ class AuditCallback(TrainerCallback):
         logs: dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> TrainerControl:
-        """Persist numeric metrics and request a stop after 20 collapsed reward groups."""
+        """Persist finite metrics and stop on non-finite values or reward collapse."""
         # The callback API supplies unused trainer arguments for all event hooks.
         del args, kwargs
         current = logs or {}
-        numeric = {
-            key: float(value)
-            for key, value in current.items()
-            if isinstance(value, (int, float)) and not isinstance(value, bool)
-        }
-        if numeric:
-            self.logger.metric(int(state.global_step), **numeric)
+        numeric = _numeric_metrics(current)
+        # Never pass NaN or infinity to the JSON metrics stream.
+        non_finite = sorted(key for key, value in numeric.items() if not math.isfinite(value))
+        if non_finite:
+            # Merge names across any final summary callback while retaining stable ordering.
+            self.non_finite_metric_names = sorted(
+                set(self.non_finite_metric_names).union(non_finite)
+            )
+            self.logger.message(
+                "non_finite_training_metric",
+                "Stopping because trainer metrics contained non-finite values.",
+                step=int(state.global_step),
+                metric_names=non_finite,
+            )
+            self.stopped_for_non_finite_metrics = True
+            control.should_training_stop = True
+        finite = {key: value for key, value in numeric.items() if math.isfinite(value)}
+        if finite:
+            self.logger.metric(int(state.global_step), **finite)
         # Current TRL logs this fraction directly; tolerate namespaced variants.
         zero_fraction = next(
-            (value for key, value in numeric.items() if key.endswith("frac_reward_zero_std")),
+            (value for key, value in finite.items() if key.endswith("frac_reward_zero_std")),
             None,
         )
         if zero_fraction is not None:
@@ -194,8 +246,8 @@ class NonNullTrackioCallback(TrackioCallback):
     """Keep Transformers' Trackio lifecycle while dropping undefined TRL metrics.
 
     Sources:
-    - https://huggingface.co/docs/transformers/main/en/trainer_callbacks
-    - https://huggingface.co/docs/trackio/api#trackio.log
+    - https://github.com/huggingface/transformers/blob/v5.16.1/src/transformers/integrations/integration_utils.py
+    - https://github.com/gradio-app/trackio/blob/38c6f2c2459c2a5852812c317d46432addd19b7b/trackio/__init__.py
     """
 
     def __init__(self) -> None:
@@ -254,7 +306,8 @@ def run_training(
         run_name=f"{logger.directory.name}-{destination.name}",
         trackio_space_id=os.getenv("TRACKIO_SPACE_ID") or None,
     )
-    # Every rollout uses the exact image digest recorded before baseline measurement.
+    # The reward executor receives the exact image digest recorded before baseline;
+    # parser/policy rejects and deterministic cache hits require no container launch.
     reward = build_grpo_reward(DockerSandbox(image=sandbox_image), logger)
     callback = AuditCallback(logger)
     # Passing the integration explicitly lets us sanitize undefined TRL extrema while
@@ -297,13 +350,21 @@ def run_training(
     torch.cuda.reset_peak_memory_stats()
     result = trainer.train(resume_from_checkpoint=resume_checkpoint)
     changed_tensors, adapter_delta_l2 = _adapter_change(trainer.model, trainable_before)
+    # Inspect all final numeric evidence before any adapter or tokenizer is persisted.
+    history = trainer.state.log_history
+    training_loss = float(result.training_loss)
+    _require_finite_training_evidence(history, training_loss, adapter_delta_l2)
+    # Retain a fail-closed boundary even if Transformers omits a callback metric from history.
+    if callback.stopped_for_non_finite_metrics:
+        raise RuntimeError(
+            "Training callback observed non-finite numeric metrics: "
+            + ", ".join(callback.non_finite_metric_names)
+        )
     if int(trainer.state.global_step) != config.training.max_steps:
         raise RuntimeError(
             f"Training stopped at step {trainer.state.global_step}; "
             f"expected {config.training.max_steps}"
         )
-    if not math.isfinite(float(result.training_loss)):
-        raise RuntimeError("Training produced a non-finite loss")
     if changed_tensors == 0 or adapter_delta_l2 == 0.0:
         raise RuntimeError("Training completed without changing any LoRA tensor")
     adapter_directory = destination / "adapter"
@@ -315,7 +376,6 @@ def run_training(
     if adapter_config.get("revision") != config.model.revision:
         raise RuntimeError("Saved adapter does not retain the pinned base-model revision")
     peak_memory = int(torch.cuda.max_memory_allocated()) if torch.cuda.is_available() else 0
-    history = trainer.state.log_history
     history_path = destination / "trainer_log_history.json"
     history_path.write_text(
         json.dumps(history, indent=2, default=str) + "\n",
@@ -326,7 +386,7 @@ def run_training(
     summary = {
         "adapter_directory": str(adapter_directory),
         "global_step": int(trainer.state.global_step),
-        "training_loss": float(result.training_loss),
+        "training_loss": training_loss,
         "sandbox_image": sandbox_image,
         "peak_vram_bytes": peak_memory,
         "prompt_tokens_max": max(lengths.values()),

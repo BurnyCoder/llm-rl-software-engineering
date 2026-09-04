@@ -1,13 +1,15 @@
-"""Global context: lock the correctness-first reward arithmetic and host comparison.
+"""Global context: lock correctness-first reward arithmetic, audit order, and comparison.
 
-Source: https://huggingface.co/docs/trl/main/en/grpo_trainer#using-a-custom-reward-function
+Source: https://github.com/huggingface/trl/blob/v1.12.0/trl/trainer/grpo_trainer.py
 """
 
+import json
 from dataclasses import dataclass
 from typing import Any
 
 import pytest
 
+import minibug_rl.reward as reward_module
 from minibug_rl.reward import build_grpo_reward, score_completion
 from minibug_rl.reward_cache import RewardCache
 from minibug_rl.schemas import TestCase
@@ -163,4 +165,123 @@ def test_grpo_reward_aligns_extra_columns_and_logs_every_completion(tmp_path: An
     logger.close()
 
     assert values == pytest.approx([2.1, 2.1])
-    assert (logger.directory / "generations.jsonl").read_text(encoding="utf-8").count("\n") == 2
+    records = [
+        json.loads(line)
+        for line in (logger.directory / "generations.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ]
+    assert [record["event"] for record in records] == [
+        "generation",
+        "generation_outcome",
+        "generation",
+        "generation_outcome",
+    ]
+    assert records[0]["generation_id"] == records[1]["generation_id"]
+    assert records[2]["generation_id"] == records[3]["generation_id"]
+    assert records[0]["generation_id"] != records[2]["generation_id"]
+    assert records[1]["metadata"]["reward"] == pytest.approx(2.1)
+    assert records[1]["metadata"]["cache_hit"] is False
+    assert records[3]["metadata"]["cache_hit"] is False
+
+
+def test_grpo_reward_flushes_raw_generation_before_candidate_parsing(
+    tmp_path: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Make the before-parse chronology observable at the parser boundary."""
+    from minibug_rl.run_logging import RunLogger
+
+    logger = RunLogger.create(tmp_path, run_id="before-parser")
+    original_parser = reward_module.parse_candidate
+    parser_observed_log = False
+
+    def parse_after_audit(completion: Any, function_name: str) -> Any:
+        """Assert the complete raw event is durable before delegating parsing."""
+        nonlocal parser_observed_log
+        records = [
+            json.loads(line)
+            for line in (logger.directory / "generations.jsonl")
+            .read_text(encoding="utf-8")
+            .splitlines()
+        ]
+        assert [record["event"] for record in records] == ["generation"]
+        assert records[0]["completion"] == completion
+        parser_observed_log = True
+        return original_parser(completion, function_name)
+
+    monkeypatch.setattr(reward_module, "parse_candidate", parse_after_audit)
+    reward = build_grpo_reward(
+        RecordingExecutor(FakeSandboxResult("success", (2,))),
+        logger,
+    )
+
+    values = reward(
+        completions=["def increment(x):\n    return x + 1"],
+        prompts=["repair"],
+        task_id=["task-1"],
+        split=["train"],
+        function_name=["increment"],
+        hidden_tests_json=['[{"args":[1],"kwargs":{},"expected":2}]'],
+    )
+    logger.close()
+
+    assert values == pytest.approx([2.1])
+    assert parser_observed_log is True
+
+
+def test_grpo_reward_requires_complete_aligned_prompts_before_logging(tmp_path: Any) -> None:
+    """Reject a caller that cannot supply the raw prompts promised by run evidence."""
+    from minibug_rl.run_logging import RunLogger
+
+    logger = RunLogger.create(tmp_path, run_id="missing-prompts")
+    reward = build_grpo_reward(
+        RecordingExecutor(FakeSandboxResult("success", (2,))),
+        logger,
+    )
+
+    with pytest.raises(ValueError, match="prompts are required"):
+        reward(
+            completions=["def increment(x):\n    return x + 1"],
+            task_id=["task-1"],
+            function_name=["increment"],
+            hidden_tests_json=['[{"args":[1],"kwargs":{},"expected":2}]'],
+        )
+    logger.close()
+
+    assert (logger.directory / "generations.jsonl").read_text(encoding="utf-8") == ""
+
+
+def test_grpo_reward_logs_raw_text_and_linked_exception_before_reraising(tmp_path: Any) -> None:
+    """Retain the complete generation even when scoring infrastructure aborts."""
+    from minibug_rl.run_logging import RunLogger
+
+    completion = "def increment(x):\n    return x + 1\n# complete-tail"
+    logger = RunLogger.create(tmp_path, run_id="reward-exception")
+    reward = build_grpo_reward(
+        RecordingExecutor(FakeSandboxResult("infrastructure_error", error="sandbox image missing")),
+        logger,
+    )
+
+    with pytest.raises(RuntimeError, match="Sandbox infrastructure failed"):
+        reward(
+            completions=[completion],
+            prompts=["repair this complete prompt"],
+            task_id=["task-1"],
+            split=["train"],
+            function_name=["increment"],
+            hidden_tests_json=['[{"args":[1],"kwargs":{},"expected":2}]'],
+        )
+    logger.close()
+
+    records = [
+        json.loads(line)
+        for line in (logger.directory / "generations.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ]
+    assert [record["event"] for record in records] == ["generation", "generation_outcome"]
+    assert records[0]["completion"] == completion
+    assert records[0]["generation_id"] == records[1]["generation_id"]
+    assert records[1]["metadata"]["status"] == "exception"
+    assert records[1]["metadata"]["exception_type"] == "RuntimeError"

@@ -6,7 +6,7 @@ download, network request, or generated-code execution is needed by these unit t
 
 Sources:
 - https://github.com/bigcode-project/bigcode-evaluation-harness/blob/8fc5bae6479c4fbbb28c3f8b644f6a15b3f3b5bd/bigcode_eval/tasks/humanevalpack.py
-- https://huggingface.co/docs/transformers/main/en/main_classes/text_generation
+- https://github.com/huggingface/transformers/blob/v5.16.1/src/transformers/generation/utils.py
 """
 
 from __future__ import annotations
@@ -283,9 +283,16 @@ def test_external_evaluation_logs_raw_text_scores_pass_at_1_and_saves_evidence(
     generation_lines = (
         (logger.directory / "generations.jsonl").read_text(encoding="utf-8").splitlines()
     )
-    generation_records = [json.loads(line) for line in generation_lines]
+    all_generation_records = [json.loads(line) for line in generation_lines]
+    generation_records = [
+        record for record in all_generation_records if record["event"] == "generation"
+    ]
+    outcome_records = [
+        record for record in all_generation_records if record["event"] == "generation_outcome"
+    ]
     assert [record["completion"] for record in generation_records] == completions
-    assert generation_records[0]["metadata"]["candidate_source"] == executor.candidates[0]
+    assert outcome_records[0]["metadata"]["candidate_source"] == executor.candidates[0]
+    assert generation_records[0]["generation_id"] == outcome_records[0]["generation_id"]
     # The atomic result artifact contains the same complete candidate-level evidence.
     artifact = json.loads(
         (logger.directory / "external-evaluation-selected-external.json").read_text(

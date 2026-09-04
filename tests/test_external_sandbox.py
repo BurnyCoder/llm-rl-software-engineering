@@ -1,11 +1,11 @@
-"""Global context: specify secure HumanEvalFix assertion-script execution.
+"""Global context: specify resource-limited HumanEvalFix Docker execution.
 
 These tests keep all generated and benchmark Python behind the Docker process
 boundary while proving that scoring distinguishes candidate outcomes from broken
 infrastructure.
 
 Sources:
-- https://docs.python.org/3/library/subprocess.html#subprocess.Popen.communicate
+- https://docs.python.org/3.12/library/subprocess.html#subprocess.Popen.communicate
 - https://docs.docker.com/reference/cli/docker/container/run/
 - https://docs.docker.com/engine/network/drivers/none/
 - https://docs.docker.com/engine/containers/resource_constraints/
@@ -252,7 +252,7 @@ def test_docker_start_failure_is_infrastructure_error(
     reason="set MINIBUG_RUN_DOCKER_TESTS=1 after building the sandbox image",
 )
 def test_real_docker_script_pass_failure_timeout_and_invalid_suite() -> None:
-    """Exercise both trust domains through the actual hardened image."""
+    """Exercise both trust domains through the resource-limited isolated image."""
     # One executor instance keeps image and limit choices identical for all outcomes.
     sandbox = DockerPythonTestSandbox(timeout_seconds=3)
     # Passing and failing suites differ only in their expected assertion value.
@@ -295,12 +295,12 @@ def test_real_docker_script_pass_failure_timeout_and_invalid_suite() -> None:
     reason="set MINIBUG_RUN_DOCKER_TESTS=1 after building the sandbox image",
 )
 def test_real_docker_bounds_candidate_output_flooding() -> None:
-    """Keep a large candidate print inside the bounded single-object protocol."""
+    """Keep a large ordinary redirected print inside the runner's output cap."""
     # Build the versioned script request through the same typed adapter as evaluation.
     request = _payload("assert repair() == 7").build_request(
         "def repair():\n    print('x' * 100_000)\n    return 7"
     )
-    # The shared transport uses the production image, limits, and no-mount command.
+    # The shared transport uses the production image, limits, and no host bind/volume.
     execution = sandbox_module.run_json_container(request, timeout_seconds=3)
 
     # The runner must preserve a valid result instead of letting stdout corrupt JSON.

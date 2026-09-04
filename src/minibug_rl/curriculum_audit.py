@@ -5,7 +5,7 @@ module keeps the corpus-quality decision separate from the prepare-phase coordin
 
 Sources:
 - https://docs.docker.com/reference/cli/docker/container/run/
-- https://docs.python.org/3/library/dataclasses.html#frozen-instances
+- https://docs.python.org/3.12/library/dataclasses.html#frozen-instances
 """
 
 from __future__ import annotations
@@ -32,7 +32,7 @@ def verify_buggy_programs_fail_hidden(
     fully_passing_ids: list[str] = []
     # The returned count becomes auditable preparation metadata for the exact run.
     checked = 0
-    # Each task receives a fresh hardened container through the shared runner function.
+    # Each authored bug reaches a fresh resource-limited container through the shared runner.
     for task in tasks:
         # Expected values stay on the trusted host; only function inputs enter Docker.
         result = run_candidate(

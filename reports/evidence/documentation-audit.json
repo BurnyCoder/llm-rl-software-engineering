@@ -1,0 +1,85 @@
+{
+  "schema_version": 1,
+  "recorded_at_utc": "2026-09-04T14:30:11Z",
+  "evidence_class": "post_run_documentation_and_artifact_audit",
+  "scope": "Current claim, source-link, implementation, publication-card, exact-revision artifact, inference, and paper verification performed without rerunning training or benchmark evaluation.",
+  "overall_status": "all_recorded_current_checks_passed",
+  "historical_experiment": {
+    "run_id": "20260904T021845Z-minibug-rl-main",
+    "producing_source_commit": "7027bc55baecc00fad51cbe2b8f030dca2c91c1e",
+    "training_or_evaluation_rerun": false,
+    "measured_values_changed": false
+  },
+  "github_corrections": {
+    "branch": "audit/fact-check-public-surfaces",
+    "implementation_commit": "8b53edf4e5bc0458519fac13d9b982a2e9ca75cc",
+    "fact_checked_documentation_commit": "902ca72a46bbc55b3154a3e2f1cd5c8cff6ddde2",
+    "final_review_resume_fix_commit": "c1f52240aeeeabccc17e05c2aa69b54ad87fcbc3",
+    "final_review_interruption_fix_commit": "091a4ee1b98bedb77e9add146b780cedfb30a50b",
+    "both_commits_pushed_before_post_audit_model_inference": true
+  },
+  "hugging_face_card_correction": {
+    "repository": "BurnyCoder/qwen2.5-coder-0.5b-swe-rl",
+    "pull_request": 1,
+    "pull_request_status": "merged",
+    "original_result_revision": "5b6e22a4c6c01bec95d10e93a0fc78666eb9c543",
+    "reviewed_pull_request_commit": "aa9dc5d8f241513f08a5ff3d8512a8142a90b7f9",
+    "corrected_card_revision": "8dc6fa7df8a09e157e3a5be1ec17b5d8b8aa4f43",
+    "original_public_file_count": 17,
+    "corrected_public_file_count": 17,
+    "file_sets_equal": true,
+    "changed_files": ["README.md"],
+    "unchanged_non_readme_file_count": 16,
+    "all_non_readme_files_byte_identical": true,
+    "original_readme_sha256": "f3a3728c6f65993ea7fbe7afe522af6a88fa52a437547a6b8e89d84f2e5b46cf",
+    "corrected_readme_sha256": "823c17e637e94ae27d8364a7dc289acfcc8b99e15287bac9b468032ceee6690e",
+    "merged_model_sha256": "e6b2d3884e72fe8322eaa5fe181ce530593f710b8b4efdcf2012b911d2416a70",
+    "adapter_model_sha256": "37f5f71fae87a4fcc5b3df40d325544271d28cf7b55d6a0262c6096d6233b1b2"
+  },
+  "checks": [
+    {
+      "id": "static_and_unit_integration_checks",
+      "status": "passed",
+      "method": "Ran uv lock --check, uv sync --locked, Ruff lint and format checks, strict mypy over src, and the default pytest coverage command.",
+      "result": "Ruff and mypy passed; the default suite had 96 passes, nine intentional opt-in skips, and 71% statement coverage."
+    },
+    {
+      "id": "real_container_and_pinned_network_suite",
+      "status": "passed",
+      "method": "Built sandbox/Dockerfile and ran pytest with MINIBUG_RUN_DOCKER_TESTS=1 and MINIBUG_RUN_NETWORK_TESTS=1.",
+      "result": "All 105 tests passed with no skips and 71% statement coverage; zero MiniBug-named containers remained afterward."
+    },
+    {
+      "id": "source_and_link_audit",
+      "status": "passed",
+      "method": "Checked maintained public Markdown local destinations, parsed all evidence JSON while rejecting duplicate object keys, and fetched complete HTTPS references from 76 tracked source/documentation files.",
+      "result": "All local destinations resolved; all evidence JSON was unambiguous; 125 unique complete HTTPS references returned 2xx or 3xx. One intentionally concatenated Python string fragment ending in /blob/ was excluded because it is not a complete URL. All six corrected model-card URLs also returned 2xx or 3xx."
+    },
+    {
+      "id": "paper_pdf",
+      "status": "passed",
+      "method": "Compiled the corrected TeX with pdfLaTeX through the bundled LaTeX skill, scanned the transcript, rendered all pages, and visually inspected the contact sheet plus full-size pages.",
+      "result": "The nine-page, 204818-byte PDF compiled with no warnings, overfull boxes, underfull boxes, or undefined references; every rendered page was legible and unclipped.",
+      "sha256": "5067e20437f65bc400b0b78d1b2ee7a4a3d40e7f07de207e6a497c598a9c8c8a"
+    },
+    {
+      "id": "card_review_and_exact_revision_comparison",
+      "status": "passed",
+      "method": "Downloaded the Hugging Face pull-request README before merge, compared it with the reviewed local card, merged the pull request, downloaded the exact resulting main revision into a fresh directory, and SHA-256 compared every public file with the original revision.",
+      "result": "The reviewed README matched byte-for-byte. The two revisions contain the same 17 paths; README.md is the only changed file and all 16 remaining files are byte-identical."
+    },
+    {
+      "id": "corrected_card_revision_inference",
+      "status": "passed",
+      "method": "Loaded only the fresh local snapshot of corrected-card revision 8dc6fa7df8a09e157e3a5be1ec17b5d8b8aa4f43, applied the README chat prompt, and greedily generated at most 128 new tokens without executing the completion.",
+      "result": "The 86-character completion was non-empty and contained the fenced clamp_value repair using max(low, min(value, high)). The complete prompt and completion are in ignored timestamped run 20260904T135937Z-corrected-card-inference."
+    },
+    {
+      "id": "secret_and_worktree_boundary",
+      "status": "passed",
+      "method": "Verified the local .env remains ignored and mode 600, scanned committed content for common Hugging Face and GitHub credential shapes without printing values, and kept caches, model snapshots, logs, and LaTeX auxiliaries ignored.",
+      "result": "No credential-shaped committed value was found; no token, raw run log, checkpoint, or model weight entered Git."
+    }
+  ],
+  "interpretation": "The existing tiny-model RL run and its numerical outcomes were not regenerated. This audit corrects public terminology and claim boundaries, strengthens future logging/training/resume/publication safeguards, and verifies that the live model-card correction changed no model, adapter, tokenizer, configuration, or result bytes."
+}
