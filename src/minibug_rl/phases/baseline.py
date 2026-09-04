@@ -19,6 +19,7 @@ def run_baseline(context: PipelineContext) -> dict[str, Any]:
         context.logger,
         split="validation",
         label="base-validation",
+        sandbox_image=context.prepared_sandbox_image(),
     )
     context.record("baseline", result)
     return result

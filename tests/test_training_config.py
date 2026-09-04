@@ -8,7 +8,12 @@ from types import SimpleNamespace
 
 from minibug_rl.config import load_run_config
 from minibug_rl.run_logging import RunLogger
-from minibug_rl.training import AuditCallback, build_grpo_config, build_lora_config
+from minibug_rl.training import (
+    AuditCallback,
+    NonNullTrackioCallback,
+    build_grpo_config,
+    build_lora_config,
+)
 
 
 def test_smoke_profile_maps_only_to_supported_current_grpo_fields(tmp_path: Path) -> None:
@@ -29,6 +34,7 @@ def test_smoke_profile_maps_only_to_supported_current_grpo_fields(tmp_path: Path
     assert arguments.mask_truncated_completions is True
     assert arguments.beta == 0.0
     assert arguments.use_vllm is False
+    assert arguments.report_to == []
     assert not hasattr(arguments, "max_prompt_length")
 
 
@@ -67,3 +73,21 @@ def test_audit_callback_stops_and_retains_reward_collapse_state(tmp_path: Path) 
     assert callback.stopped_for_reward_collapse is True
     assert control.should_training_stop is True
     logger.close()
+
+
+def test_trackio_callback_drops_none_without_losing_defined_metrics() -> None:
+    """Avoid Trackio's pyplot misclassification when TRL logs undefined extrema."""
+    captured: list[dict[str, float | int]] = []
+    callback = NonNullTrackioCallback()
+    # Bypass network-free callback setup so this unit test observes only metric filtering.
+    callback._initialized = True
+    callback._trackio = SimpleNamespace(log=captured.append)
+
+    callback.on_log(
+        SimpleNamespace(),
+        SimpleNamespace(is_world_process_zero=True, global_step=2),
+        SimpleNamespace(),
+        logs={"loss": 0.0, "clip_ratio/low_min": None, "reward": -0.3},
+    )
+
+    assert captured == [{"train/loss": 0.0, "train/reward": -0.3, "train/global_step": 2}]

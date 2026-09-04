@@ -5,9 +5,18 @@
 # Pin the official multi-platform Python image by digest for reproducible rebuilds.
 FROM python:3.12-slim@sha256:78387bc3881b8273120a12ebe6c1ab22b018ccc2c9adf565ae1ac9b536e184ea
 
-# Avoid writes beside source files and make the JSON protocol immediately visible.
+# Avoid bytecode writes, flush the JSON protocol, and keep NumPy within the PID limit.
 ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    OPENBLAS_NUM_THREADS=1 \
+    OMP_NUM_THREADS=1 \
+    MKL_NUM_THREADS=1 \
+    NUMEXPR_NUM_THREADS=1
+
+# HumanEvalPack's pinned Python harness prepends NumPy imports to every candidate.
+# Source: https://github.com/bigcode-project/bigcode-evaluation-harness/blob/8fc5bae6479c4fbbb28c3f8b644f6a15b3f3b5bd/bigcode_eval/tasks/humanevalpack.py#L371-L375
+RUN python -m pip install --no-cache-dir --disable-pip-version-check \
+    --root-user-action=ignore "numpy==2.5.2"
 
 # Keep the immutable runner at one predictable path inside the image.
 WORKDIR /opt/minibug

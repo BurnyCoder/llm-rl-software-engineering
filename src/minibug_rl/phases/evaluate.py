@@ -9,12 +9,14 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from minibug_rl.context import PipelineContext
 from minibug_rl.evaluation import evaluate_internal
+from minibug_rl.external_evaluation import evaluate_external, external_result_is_complete
 from minibug_rl.metrics import paired_bootstrap_interval
 from minibug_rl.run_logging import utc_timestamp
+from minibug_rl.sandbox import DEFAULT_TIMEOUT_SECONDS
 
 
 def _selection_key(result: dict[str, Any]) -> tuple[float, float]:
@@ -42,18 +44,30 @@ def _evaluate_final_once(
     result_path = context.logger.directory / f"evaluation-{label}.json"
     if result_path.exists():
         loaded = json.loads(result_path.read_text(encoding="utf-8"))
-        if not isinstance(loaded, dict) or not isinstance(loaded.get("summary"), dict):
+        summary = loaded.get("summary") if isinstance(loaded, dict) else None
+        scores = loaded.get("task_scores") if isinstance(loaded, dict) else None
+        if not isinstance(summary, dict) or not isinstance(scores, dict):
             raise ValueError(f"Saved final-test result {result_path} is malformed")
         expected_model = (
             str(adapter_path) if adapter_path is not None else context.config.model.base_model
         )
-        if loaded["summary"].get("model") == expected_model:
+        reusable = (
+            summary.get("label") == label
+            and summary.get("split") == "test"
+            and summary.get("model") == expected_model
+            and summary.get("base_revision") == context.config.model.revision
+            and summary.get("sandbox_image") == context.prepared_sandbox_image()
+            and summary.get("sampled_k") == context.config.evaluation.sample_generations
+            and summary.get("tasks") == 12
+            and len(scores) == 12
+        )
+        if reusable:
             context.logger.message(
                 "final_test_reused",
                 f"Reusing completed final-test evidence for {label}.",
                 label=label,
             )
-            return loaded
+            return cast(dict[str, Any], loaded)
         stale_path = result_path.with_name(f"{result_path.stem}.stale-{utc_timestamp()}.json")
         result_path.replace(stale_path)
         context.logger.message(
@@ -66,6 +80,51 @@ def _evaluate_final_once(
         context.logger,
         split="test",
         label=label,
+        sandbox_image=context.prepared_sandbox_image(),
+        adapter_path=adapter_path,
+    )
+
+
+def _evaluate_external_once(
+    context: PipelineContext,
+    *,
+    label: str,
+    adapter_path: Path | None = None,
+) -> dict[str, Any]:
+    """Resume only complete external evidence for the same model and dataset pin."""
+    result_path = context.logger.directory / f"external-evaluation-{label}.json"
+    if result_path.exists():
+        loaded = json.loads(result_path.read_text(encoding="utf-8"))
+        expected_model = (
+            str(adapter_path) if adapter_path is not None else context.config.model.base_model
+        )
+        if external_result_is_complete(
+            loaded,
+            label=label,
+            model=expected_model,
+            base_revision=context.config.model.revision,
+            maximum_new_tokens=context.config.model.max_completion_length,
+            sandbox_image=context.prepared_sandbox_image(),
+            sandbox_timeout_seconds=DEFAULT_TIMEOUT_SECONDS,
+        ):
+            context.logger.message(
+                "external_test_reused",
+                f"Reusing completed frozen external evidence for {label}.",
+                label=label,
+            )
+            return cast(dict[str, Any], loaded)
+        stale_path = result_path.with_name(f"{result_path.stem}.stale-{utc_timestamp()}.json")
+        result_path.replace(stale_path)
+        context.logger.message(
+            "external_test_stale",
+            f"Preserved stale external evidence before reevaluating {label}.",
+            stale_path=str(stale_path),
+        )
+    return evaluate_external(
+        context.config,
+        context.logger,
+        label=label,
+        sandbox_image=context.prepared_sandbox_image(),
         adapter_path=adapter_path,
     )
 
@@ -90,6 +149,7 @@ def run_evaluate(context: PipelineContext) -> dict[str, Any]:
             logger,
             split="validation",
             label=f"{name}-validation",
+            sandbox_image=context.prepared_sandbox_image(),
             adapter_path=adapter_path,
         )
     selected_name = max(
@@ -132,6 +192,20 @@ def run_evaluate(context: PipelineContext) -> dict[str, Any]:
         samples=context.config.evaluation.bootstrap_samples,
         seed=context.config.training.seed,
     )
+    # HumanEvalFix is opened only after validation selection is immutable and never
+    # contributes to model choice, hyperparameters, rewards, or the learning gate.
+    external_base = _evaluate_external_once(context, label="base-humanevalfix")
+    external_selected = _evaluate_external_once(
+        context,
+        label="selected-humanevalfix",
+        adapter_path=selected_path,
+    )
+    external_interval = paired_bootstrap_interval(
+        external_base["task_scores"],
+        external_selected["task_scores"],
+        samples=context.config.evaluation.bootstrap_samples,
+        seed=context.config.training.seed,
+    )
     result = {
         "selected_candidate": selected_name,
         "selected_adapter": str(selected_path),
@@ -143,6 +217,9 @@ def run_evaluate(context: PipelineContext) -> dict[str, Any]:
         "base_test": base_test,
         "selected_test": selected_test,
         "test_interval": test_interval,
+        "external_base": external_base,
+        "external_selected": external_selected,
+        "external_interval": external_interval,
     }
     logger.write_json("comparison.json", result)
     context.record("evaluate", result)

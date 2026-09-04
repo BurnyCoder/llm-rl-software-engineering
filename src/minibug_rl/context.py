@@ -3,6 +3,7 @@
 Sources:
 - https://docs.python.org/3/library/dataclasses.html
 - https://docs.python.org/3/library/json.html
+- https://docs.docker.com/reference/cli/docker/image/inspect/
 """
 
 from __future__ import annotations
@@ -31,13 +32,17 @@ def _file_sha256(path: Path) -> str:
 def _source_identity(repository: Path) -> tuple[str, str]:
     """Identify both the Git commit and any tracked source diff used by this run."""
     try:
-        commit = subprocess.run(
-            ["git", "rev-parse", "HEAD"],
-            cwd=repository,
-            check=True,
-            capture_output=True,
-            timeout=10,
-        ).stdout.decode("utf-8").strip()
+        commit = (
+            subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                cwd=repository,
+                check=True,
+                capture_output=True,
+                timeout=10,
+            )
+            .stdout.decode("utf-8")
+            .strip()
+        )
         difference = subprocess.run(
             [
                 "git",
@@ -115,3 +120,24 @@ class PipelineContext:
         self.state[phase] = result
         self.logger.write_json("state.json", self.state)
         self.logger.message("phase_complete", f"Completed phase {phase}.", phase=phase)
+
+    def prepared_sandbox_image(self) -> str:
+        """Return the immutable Docker image ID recorded by the prepare phase."""
+        # Later phases must never fall back to the mutable local tag after preparation.
+        preparation = self.state.get("prepare")
+        # Manual or stale states without a preparation mapping are not executable evidence.
+        image_id = preparation.get("sandbox_image_id") if isinstance(preparation, dict) else None
+        # Docker reports image IDs as an algorithm prefix plus a 64-character hex digest.
+        valid_image_id = (
+            isinstance(image_id, str)
+            and image_id.startswith("sha256:")
+            and len(image_id) == 71
+            and all(character in "0123456789abcdef" for character in image_id[7:])
+        )
+        # Failing closed prevents a resumed run from silently scoring with a changed tag.
+        if not valid_image_id:
+            raise RuntimeError("No valid prepared sandbox image ID is recorded")
+        # The explicit assertion communicates the compound validation narrowing to mypy.
+        assert isinstance(image_id, str)
+        # The digest itself can be passed to `docker run --pull never` as an immutable image.
+        return image_id

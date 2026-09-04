@@ -30,6 +30,8 @@ DATASET_SPLIT: Final = "test"
 DATASET_REVISION: Final = "9a41762f73a8cb23bb5811b73d5aab164efcf378"
 # The pinned card declares exactly 164 Python test records.
 EXPECTED_TASK_COUNT: Final = 164
+# The pinned Python split uses the canonical HumanEval numeric order without omissions.
+EXPECTED_TASK_IDS: Final = tuple(f"Python/{index}" for index in range(EXPECTED_TASK_COUNT))
 # This adapter follows the official test-hidden, docstring-visible repair variant.
 PROMPT_VARIANT: Final = "humanevalfixdocs-python"
 # A versioned name lets a future runner reject this request instead of misrouting it.
@@ -204,9 +206,7 @@ def _external_task(value: Any, index: int) -> ExternalRepairTask:
     completion_prefix = cast(str, row["prompt"])
     buggy_source = completion_prefix + cast(str, row["buggy_solution"])
     # This matches HumanEvalFixDocs `instruct`: context, repair request, completion prefix.
-    model_prompt = (
-        buggy_source + f"\nFix bugs in {entry_point}.\n\n" + completion_prefix
-    ).strip()
+    model_prompt = (buggy_source + f"\nFix bugs in {entry_point}.\n\n" + completion_prefix).strip()
     # Reading validates canonical_solution above, but omitting it here prevents leakage.
     return ExternalRepairTask(
         id=task_id,
@@ -240,6 +240,9 @@ def _validated_tasks(rows: Iterable[Mapping[str, Any]]) -> tuple[ExternalRepairT
     identifiers = [task.id for task in tasks]
     if len(identifiers) != len(set(identifiers)):
         raise ExternalEvaluationDataError("Duplicate HumanEvalFix task IDs are prohibited")
+    # Exact ordered identity detects substitutions that a count-and-uniqueness check misses.
+    if tuple(identifiers) != EXPECTED_TASK_IDS:
+        raise ExternalEvaluationDataError("HumanEvalFix ordered task IDs differ from the pin")
     return tasks
 
 
