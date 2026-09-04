@@ -7,6 +7,8 @@ infrastructure.
 Sources:
 - https://docs.python.org/3/library/subprocess.html#subprocess.Popen.communicate
 - https://docs.docker.com/reference/cli/docker/container/run/
+- https://docs.docker.com/engine/network/drivers/none/
+- https://docs.docker.com/engine/containers/resource_constraints/
 - https://github.com/bigcode-project/bigcode-evaluation-harness/blob/8fc5bae6479c4fbbb28c3f8b644f6a15b3f3b5bd/bigcode_eval/tasks/humanevalpack.py
 """
 
@@ -285,3 +287,206 @@ def test_real_docker_script_pass_failure_timeout_and_invalid_suite() -> None:
     assert timeout.status == "timeout"
     assert invalid_suite.status == "infrastructure_error"
     assert numpy_passed.status == "passed"
+
+
+@pytest.mark.docker
+@pytest.mark.skipif(
+    os.getenv("MINIBUG_RUN_DOCKER_TESTS") != "1",
+    reason="set MINIBUG_RUN_DOCKER_TESTS=1 after building the sandbox image",
+)
+def test_real_docker_bounds_candidate_output_flooding() -> None:
+    """Keep a large candidate print inside the bounded single-object protocol."""
+    # Build the versioned script request through the same typed adapter as evaluation.
+    request = _payload("assert repair() == 7").build_request(
+        "def repair():\n    print('x' * 100_000)\n    return 7"
+    )
+    # The shared transport uses the production image, limits, and no-mount command.
+    execution = sandbox_module.run_json_container(request, timeout_seconds=3)
+
+    # The runner must preserve a valid result instead of letting stdout corrupt JSON.
+    assert execution.status == "success"
+    assert execution.response is not None
+    assert execution.response["status"] == "passed"
+    # The capture flag and exact retained prefix prove the flood was actually bounded.
+    assert execution.response["output_truncated"] is True
+    assert execution.response["stdout"] == "x" * (16 * 1024)
+
+
+@pytest.mark.docker
+@pytest.mark.skipif(
+    os.getenv("MINIBUG_RUN_DOCKER_TESTS") != "1",
+    reason="set MINIBUG_RUN_DOCKER_TESTS=1 after building the sandbox image",
+)
+def test_real_docker_root_filesystem_is_read_only() -> None:
+    """Observe the read-only root mount and reject a real root-file write."""
+    # Full Python is intentional here: Docker, not the benchmark parser, is the boundary.
+    candidate = (
+        "import os\n\n"
+        "def repair():\n"
+        "    root_is_read_only = bool(os.statvfs('/').f_flag & os.ST_RDONLY)\n"
+        "    try:\n"
+        "        with open('/minibug-write-probe', 'w') as handle:\n"
+        "            handle.write('unexpected')\n"
+        "    except OSError:\n"
+        "        return root_is_read_only\n"
+        "    return False"
+    )
+    # A passing assertion proves both the mount flag and attempted write denial in Docker.
+    result = DockerPythonTestSandbox(timeout_seconds=3).execute(
+        _payload("assert repair() is True"),
+        candidate,
+    )
+
+    # A writable root would make the candidate return false and fail this assertion.
+    assert result.status == "passed"
+
+
+@pytest.mark.docker
+@pytest.mark.skipif(
+    os.getenv("MINIBUG_RUN_DOCKER_TESTS") != "1",
+    reason="set MINIBUG_RUN_DOCKER_TESTS=1 after building the sandbox image",
+)
+def test_real_docker_has_only_loopback_and_cannot_connect_out() -> None:
+    """Verify the none network exposes no external interface or usable route."""
+    # The reserved numeric address avoids DNS and cannot identify any operator service.
+    candidate = (
+        "import socket\n\n"
+        "def repair():\n"
+        "    interfaces = {name for _, name in socket.if_nameindex()}\n"
+        "    probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)\n"
+        "    probe.settimeout(0.25)\n"
+        "    try:\n"
+        "        connection_result = probe.connect_ex(('192.0.2.1', 9))\n"
+        "    finally:\n"
+        "        probe.close()\n"
+        "    return interfaces == {'lo'} and connection_result != 0"
+    )
+    # The production command supplies --network none before executing this probe.
+    result = DockerPythonTestSandbox(timeout_seconds=3).execute(
+        _payload("assert repair() is True"),
+        candidate,
+    )
+
+    # Success requires both loopback-only enumeration and a failed outbound connection.
+    assert result.status == "passed"
+
+
+@pytest.mark.docker
+@pytest.mark.skipif(
+    os.getenv("MINIBUG_RUN_DOCKER_TESTS") != "1",
+    reason="set MINIBUG_RUN_DOCKER_TESTS=1 after building the sandbox image",
+)
+def test_real_docker_runs_as_configured_non_root_identity() -> None:
+    """Read the effective and real numeric identities from inside the container."""
+    # Numeric IDs avoid depending on an optional passwd entry in the slim image.
+    candidate = (
+        "import os\n\n"
+        "def repair():\n"
+        "    return os.getuid(), os.getgid(), os.geteuid(), os.getegid()"
+    )
+    # The assertion executes only in the container and matches build/run user 65532.
+    result = DockerPythonTestSandbox(timeout_seconds=3).execute(
+        _payload("assert repair() == (65532, 65532, 65532, 65532)"),
+        candidate,
+    )
+
+    # Any accidental root or group regression fails the in-container assertion.
+    assert result.status == "passed"
+
+
+@pytest.mark.docker
+@pytest.mark.skipif(
+    os.getenv("MINIBUG_RUN_DOCKER_TESTS") != "1",
+    reason="set MINIBUG_RUN_DOCKER_TESTS=1 after building the sandbox image",
+)
+def test_real_docker_pid_limit_stops_and_cleans_process_exhaustion() -> None:
+    """Reach the cgroup PID ceiling linearly and reap every created child."""
+    # Each forked child sleeps without forking again, avoiding an exponential fork bomb.
+    candidate = (
+        "import os\n"
+        "import signal\n"
+        "import time\n\n"
+        "def repair():\n"
+        "    children = []\n"
+        "    limit_reached = False\n"
+        "    try:\n"
+        "        for _ in range(64):\n"
+        "            try:\n"
+        "                child = os.fork()\n"
+        "            except OSError:\n"
+        "                limit_reached = True\n"
+        "                break\n"
+        "            if child == 0:\n"
+        "                time.sleep(2)\n"
+        "                os._exit(0)\n"
+        "            children.append(child)\n"
+        "    finally:\n"
+        "        for child in children:\n"
+        "            try:\n"
+        "                os.kill(child, signal.SIGKILL)\n"
+        "            except ProcessLookupError:\n"
+        "                pass\n"
+        "        for child in children:\n"
+        "            try:\n"
+        "                os.waitpid(child, 0)\n"
+        "            except ChildProcessError:\n"
+        "                pass\n"
+        "    return limit_reached and len(children) < 64"
+    )
+    # Five seconds allows deterministic reaping while still bounding every failure path.
+    result = DockerPythonTestSandbox(timeout_seconds=5).execute(
+        _payload("assert repair() is True"),
+        candidate,
+    )
+
+    # Passing proves fork failed before 64 children and cleanup returned normally.
+    assert result.status == "passed"
+
+
+@pytest.mark.docker
+@pytest.mark.skipif(
+    os.getenv("MINIBUG_RUN_DOCKER_TESTS") != "1",
+    reason="set MINIBUG_RUN_DOCKER_TESTS=1 after building the sandbox image",
+)
+def test_real_docker_memory_limit_and_tmpfs_exhaustion_are_bounded() -> None:
+    """Confirm the memory cgroup and safely exhaust only the 16 MiB tmpfs."""
+    # Reading either cgroup generation keeps the probe portable across Docker hosts.
+    candidate = (
+        "import errno\n"
+        "import os\n\n"
+        "def repair():\n"
+        "    memory_paths = (\n"
+        "        '/sys/fs/cgroup/memory.max',\n"
+        "        '/sys/fs/cgroup/memory/memory.limit_in_bytes',\n"
+        "    )\n"
+        "    memory_limit = None\n"
+        "    for path in memory_paths:\n"
+        "        if os.path.exists(path):\n"
+        "            with open(path, encoding='utf-8') as handle:\n"
+        "                value = handle.read().strip()\n"
+        "            if value.isdigit():\n"
+        "                memory_limit = int(value)\n"
+        "                break\n"
+        "    exhausted = False\n"
+        "    path = '/tmp/minibug-resource-probe'\n"
+        "    try:\n"
+        "        with open(path, 'wb') as handle:\n"
+        "            for _ in range(32):\n"
+        "                handle.write(b'x' * (1024 * 1024))\n"
+        "    except OSError as error:\n"
+        "        exhausted = error.errno == errno.ENOSPC\n"
+        "    finally:\n"
+        "        try:\n"
+        "            os.unlink(path)\n"
+        "        except FileNotFoundError:\n"
+        "            pass\n"
+        "    return memory_limit == 128 * 1024 * 1024 and exhausted"
+    )
+    # The probe consumes at most the isolated tmpfs and never pressures host memory.
+    result = DockerPythonTestSandbox(timeout_seconds=5).execute(
+        _payload("assert repair() is True"),
+        candidate,
+    )
+
+    # Success proves both the 128 MiB cgroup value and enforced tmpfs capacity.
+    assert result.status == "passed"
