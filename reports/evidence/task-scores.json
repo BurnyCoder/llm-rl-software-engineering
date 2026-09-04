@@ -1,0 +1,223 @@
+{
+  "schema_version": 1,
+  "run_id": "20260904T021845Z-minibug-rl-main",
+  "score_definitions": {
+    "internal": "The one greedy candidate's fraction of hidden tests passed for each task.",
+    "external": "One for a passed greedy HumanEvalFix candidate and zero for a failed or timed-out candidate.",
+    "sampled_metrics_excluded": "This file records the paired task_scores used by the reported bootstrap intervals. Sampled candidates remain in the raw evaluation artifacts."
+  },
+  "validation": {
+    "artifact_task_order": [
+      "validation_dedupe_runs_041",
+      "validation_transpose_042",
+      "validation_dot_043",
+      "validation_brackets_044",
+      "validation_merge_sorted_045",
+      "validation_mode_046",
+      "validation_month_days_047",
+      "validation_normalize_048",
+      "validation_leap_037",
+      "validation_shift_char_038",
+      "validation_binary_039",
+      "validation_longest_word_040"
+    ],
+    "bootstrap_pairing_order": [
+      "validation_binary_039",
+      "validation_brackets_044",
+      "validation_dedupe_runs_041",
+      "validation_dot_043",
+      "validation_leap_037",
+      "validation_longest_word_040",
+      "validation_merge_sorted_045",
+      "validation_mode_046",
+      "validation_month_days_047",
+      "validation_normalize_048",
+      "validation_shift_char_038",
+      "validation_transpose_042"
+    ],
+    "base": {
+      "validation_dedupe_runs_041": 0.5,
+      "validation_transpose_042": 0.0,
+      "validation_dot_043": 1.0,
+      "validation_brackets_044": 1.0,
+      "validation_merge_sorted_045": 1.0,
+      "validation_mode_046": 1.0,
+      "validation_month_days_047": 1.0,
+      "validation_normalize_048": 1.0,
+      "validation_leap_037": 0.5,
+      "validation_shift_char_038": 0.75,
+      "validation_binary_039": 1.0,
+      "validation_longest_word_040": 0.5
+    },
+    "smoke": {
+      "validation_dedupe_runs_041": 0.5,
+      "validation_transpose_042": 0.0,
+      "validation_dot_043": 1.0,
+      "validation_brackets_044": 1.0,
+      "validation_merge_sorted_045": 1.0,
+      "validation_mode_046": 1.0,
+      "validation_month_days_047": 1.0,
+      "validation_normalize_048": 1.0,
+      "validation_leap_037": 0.5,
+      "validation_shift_char_038": 0.75,
+      "validation_binary_039": 1.0,
+      "validation_longest_word_040": 0.5
+    },
+    "train": {
+      "validation_dedupe_runs_041": 0.5,
+      "validation_transpose_042": 1.0,
+      "validation_dot_043": 1.0,
+      "validation_brackets_044": 1.0,
+      "validation_merge_sorted_045": 1.0,
+      "validation_mode_046": 0.25,
+      "validation_month_days_047": 1.0,
+      "validation_normalize_048": 1.0,
+      "validation_leap_037": 0.5,
+      "validation_shift_char_038": 0.75,
+      "validation_binary_039": 1.0,
+      "validation_longest_word_040": 1.0
+    },
+    "train_minus_base": {
+      "mean": 0.0625,
+      "bootstrap_95_interval": [-0.14583333333333334, 0.2916666666666667],
+      "improved": [
+        {"task_id": "validation_transpose_042", "base": 0.0, "train": 1.0, "difference": 1.0},
+        {"task_id": "validation_longest_word_040", "base": 0.5, "train": 1.0, "difference": 0.5}
+      ],
+      "regressed": [
+        {"task_id": "validation_mode_046", "base": 1.0, "train": 0.25, "difference": -0.75}
+      ],
+      "tied_task_count": 9,
+      "full_solve_gains": 2,
+      "full_solve_losses": 1,
+      "net_full_solve_gain": 1
+    }
+  },
+  "internal_test": {
+    "artifact_task_order": [
+      "test_hamming_049",
+      "test_run_length_050",
+      "test_parse_bool_051",
+      "test_nearest_multiple_052",
+      "test_alternating_053",
+      "test_wrap_index_054",
+      "test_pair_sums_055",
+      "test_temperature_056",
+      "test_prefix_057",
+      "test_checksum_058",
+      "test_trace_059",
+      "test_initials_060"
+    ],
+    "bootstrap_pairing_order": [
+      "test_alternating_053",
+      "test_checksum_058",
+      "test_hamming_049",
+      "test_initials_060",
+      "test_nearest_multiple_052",
+      "test_pair_sums_055",
+      "test_parse_bool_051",
+      "test_prefix_057",
+      "test_run_length_050",
+      "test_temperature_056",
+      "test_trace_059",
+      "test_wrap_index_054"
+    ],
+    "base": {
+      "test_hamming_049": 0.25,
+      "test_run_length_050": 0.0,
+      "test_parse_bool_051": 0.8,
+      "test_nearest_multiple_052": 0.5,
+      "test_alternating_053": 1.0,
+      "test_wrap_index_054": 0.25,
+      "test_pair_sums_055": 0.25,
+      "test_temperature_056": 1.0,
+      "test_prefix_057": 1.0,
+      "test_checksum_058": 1.0,
+      "test_trace_059": 1.0,
+      "test_initials_060": 0.25
+    },
+    "selected_train": {
+      "test_hamming_049": 0.0,
+      "test_run_length_050": 0.0,
+      "test_parse_bool_051": 1.0,
+      "test_nearest_multiple_052": 0.75,
+      "test_alternating_053": 0.25,
+      "test_wrap_index_054": 1.0,
+      "test_pair_sums_055": 1.0,
+      "test_temperature_056": 1.0,
+      "test_prefix_057": 1.0,
+      "test_checksum_058": 1.0,
+      "test_trace_059": 0.0,
+      "test_initials_060": 0.25
+    },
+    "selected_minus_base": {
+      "mean": -0.00416666666666667,
+      "bootstrap_95_interval": [-0.2916666666666667, 0.2625],
+      "improved": [
+        {"task_id": "test_parse_bool_051", "base": 0.8, "selected": 1.0, "difference": 0.2},
+        {"task_id": "test_nearest_multiple_052", "base": 0.5, "selected": 0.75, "difference": 0.25},
+        {"task_id": "test_wrap_index_054", "base": 0.25, "selected": 1.0, "difference": 0.75},
+        {"task_id": "test_pair_sums_055", "base": 0.25, "selected": 1.0, "difference": 0.75}
+      ],
+      "regressed": [
+        {"task_id": "test_hamming_049", "base": 0.25, "selected": 0.0, "difference": -0.25},
+        {"task_id": "test_alternating_053", "base": 1.0, "selected": 0.25, "difference": -0.75},
+        {"task_id": "test_trace_059", "base": 1.0, "selected": 0.0, "difference": -1.0}
+      ],
+      "tied_task_count": 5,
+      "full_solve_gains": 3,
+      "full_solve_losses": 2,
+      "net_full_solve_gain": 1
+    }
+  },
+  "external_humanevalfix": {
+    "task_domain": "Python/0 through Python/163 inclusive in numeric artifact order",
+    "task_count": 164,
+    "raw_order_identical_between_systems": true,
+    "bootstrap_order": "Lexicographic sort of task_id, as implemented by paired_bootstrap_interval.",
+    "encoding": "Every task not listed under passed_tasks has score 0. Timeout lists refine the zero-score status; every remaining zero-score task has status failed.",
+    "base": {
+      "passed_tasks": [
+        "Python/0", "Python/2", "Python/3", "Python/5", "Python/7", "Python/8", "Python/9",
+        "Python/13", "Python/14", "Python/16", "Python/22", "Python/24", "Python/25",
+        "Python/27", "Python/29", "Python/30", "Python/34", "Python/35", "Python/40",
+        "Python/43", "Python/48", "Python/49", "Python/58", "Python/60", "Python/62",
+        "Python/73", "Python/84", "Python/85", "Python/86", "Python/105", "Python/116",
+        "Python/117", "Python/122", "Python/127", "Python/148", "Python/155", "Python/161"
+      ],
+      "timeout_tasks": ["Python/10", "Python/156", "Python/160"]
+    },
+    "selected_train": {
+      "passed_tasks": [
+        "Python/0", "Python/2", "Python/3", "Python/5", "Python/7", "Python/8", "Python/9",
+        "Python/13", "Python/14", "Python/16", "Python/22", "Python/24", "Python/25",
+        "Python/27", "Python/29", "Python/30", "Python/34", "Python/35", "Python/40",
+        "Python/43", "Python/48", "Python/49", "Python/58", "Python/60", "Python/69",
+        "Python/73", "Python/78", "Python/84", "Python/85", "Python/98", "Python/105",
+        "Python/116", "Python/117", "Python/122", "Python/127", "Python/148", "Python/155",
+        "Python/161"
+      ],
+      "timeout_tasks": ["Python/10", "Python/80", "Python/156", "Python/160"]
+    },
+    "selected_minus_base": {
+      "mean": 0.006097560975609756,
+      "bootstrap_95_interval": [-0.018292682926829267, 0.036585365853658534],
+      "improved": ["Python/69", "Python/78", "Python/98"],
+      "regressed": ["Python/62", "Python/86"],
+      "binary_tied_task_count": 159,
+      "both_passed": 35,
+      "both_zero_score": 124,
+      "failed_to_timeout_without_score_change": ["Python/80"],
+      "same_status_task_count": 158
+    }
+  },
+  "sources": {
+    "validation_base": "logs/20260904T021845Z-minibug-rl-main/evaluation-base-validation.json",
+    "validation_smoke": "logs/20260904T021845Z-minibug-rl-main/evaluation-smoke-validation.json",
+    "validation_train": "logs/20260904T021845Z-minibug-rl-main/evaluation-train-validation.json",
+    "internal_test_base": "logs/20260904T021845Z-minibug-rl-main/evaluation-base-test-final.json",
+    "internal_test_selected": "logs/20260904T021845Z-minibug-rl-main/evaluation-selected-test-final.json",
+    "external_base": "logs/20260904T021845Z-minibug-rl-main/external-evaluation-base-humanevalfix.json",
+    "external_selected": "logs/20260904T021845Z-minibug-rl-main/external-evaluation-selected-humanevalfix.json"
+  }
+}

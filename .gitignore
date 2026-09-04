@@ -23,4 +23,11 @@ output/pdf/*.aux
 output/pdf/*.log
 output/pdf/*.out
 output/pdf/*.synctex.gz
+paper/*.aux
+paper/*.fdb_latexmk
+paper/*.fls
+paper/*.log
+paper/*.out
+paper/*.pdf
+paper/*.synctex.gz
 *:Zone.Identifier
