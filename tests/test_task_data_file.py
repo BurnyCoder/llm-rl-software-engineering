@@ -26,6 +26,9 @@ from collections import Counter
 # `Path` resolves fixtures relative to this test instead of the caller's directory.
 from pathlib import Path
 
+# Reuse the production canonicalizer and test its invariants independently below.
+from minibug_rl.task_data import structural_fingerprint
+
 # The repository root is the parent of the tests directory containing this file.
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 # The curriculum path is centralized so every test examines the same bytes.
@@ -67,21 +70,6 @@ def canonical_task_bytes(task: dict[str, object]) -> bytes:
     )
     # UTF-8 turns the canonical text into the bytes required by SHA-256.
     return canonical.encode("utf-8")
-
-
-def source_fingerprint(source: str) -> str:
-    """Hash a location-free AST representation of one buggy function.
-
-    `include_attributes=False` excludes line and column metadata as documented at
-    https://docs.python.org/3/library/ast.html#ast.dump.
-    """
-
-    # Parsing rejects syntactically invalid task programs before a training run starts.
-    tree = ast.parse(source)
-    # Dumping the AST normalizes whitespace while retaining semantic names and literals.
-    normalized = ast.dump(tree, annotate_fields=True, include_attributes=False)
-    # The hexadecimal digest is stable, compact, and directly comparable to the manifest.
-    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
 
 
 class TaskDataFileTests(unittest.TestCase):
@@ -158,6 +146,29 @@ class TaskDataFileTests(unittest.TestCase):
         # A set removes duplicates, so equal lengths prove uniqueness.
         self.assertEqual(len(task_ids), len(set(task_ids)))
 
+    def test_structural_fingerprint_detects_renamed_reparameterized_templates(self) -> None:
+        """Ignore surface names/constants while retaining meaningful control-flow shape."""
+
+        # These two functions differ only in task name, argument, and numeric literals.
+        even_shape = "def is_even(n):\n    return n % 2 == 1"
+        leap_shape = "def is_leap(year):\n    return year % 4 == 0"
+        # Adding a branch changes repair structure and must remain distinguishable.
+        branched = (
+            "def is_leap(year):\n"
+            "    if year % 100 == 0:\n"
+            "        return False\n"
+            "    return year % 4 == 0"
+        )
+        boolean_call = "def parse(value):\n    return bool(value)"
+        sum_call = "def total(items):\n    return sum(items)"
+
+        self.assertEqual(structural_fingerprint(even_shape), structural_fingerprint(leap_shape))
+        self.assertNotEqual(structural_fingerprint(even_shape), structural_fingerprint(branched))
+        self.assertNotEqual(
+            structural_fingerprint(boolean_call),
+            structural_fingerprint(sum_call),
+        )
+
     def test_buggy_code_is_one_named_import_free_function(self) -> None:
         """Require parseable, short, single-function repair targets with matching arity."""
 
@@ -194,7 +205,7 @@ class TaskDataFileTests(unittest.TestCase):
         """Recompute canonical hashes and AST fingerprints for all records."""
 
         # The version lets future incompatible manifest formats fail explicitly.
-        self.assertEqual(self.manifest["schema_version"], 1)
+        self.assertEqual(self.manifest["schema_version"], 2)
         # Stored counts include an explicit total for quick human inspection.
         expected_manifest_counts = {**EXPECTED_COUNTS, "total": 60}
         # The manifest count summary must match the registered split.
@@ -203,8 +214,8 @@ class TaskDataFileTests(unittest.TestCase):
         tasks_by_id = {task["id"]: task for task in self.tasks}
         # The manifest must cover every task exactly once and nothing else.
         self.assertEqual(set(self.manifest["tasks"]), set(tasks_by_id))
-        # Fingerprints are collected globally to detect identical source across any splits.
-        fingerprints: list[str] = []
+        # Each normalized template may occur repeatedly only within one frozen split.
+        fingerprint_splits: dict[str, set[str]] = {}
         # Recompute both integrity values instead of trusting checked-in metadata.
         for task_id, task in tasks_by_id.items():
             # A subtest keeps a changed record's ID in the failure message.
@@ -218,13 +229,13 @@ class TaskDataFileTests(unittest.TestCase):
                 # Any task-field or test-case edit must invalidate this assertion.
                 self.assertEqual(entry["canonical_sha256"], canonical_sha256)
                 # The source fingerprint independently tracks normalized Python structure.
-                fingerprint = source_fingerprint(task["buggy_code"])
+                fingerprint = structural_fingerprint(task["buggy_code"])
                 # Formatting-only edits retain the fingerprint while semantic edits change it.
                 self.assertEqual(entry["ast_fingerprint"], fingerprint)
-                # Save it for the global cross-split duplicate check below.
-                fingerprints.append(fingerprint)
-        # Global uniqueness is stricter than merely checking duplicates within each split.
-        self.assertEqual(len(fingerprints), len(set(fingerprints)))
+                # Save it for the normalized cross-split duplicate check below.
+                fingerprint_splits.setdefault(fingerprint, set()).add(task["split"])
+        # A template can repeat inside a split but must never bridge train/validation/test.
+        self.assertTrue(all(len(splits) == 1 for splits in fingerprint_splits.values()))
 
 
 # Direct execution supports `python tests/test_task_data_file.py` without pytest.
