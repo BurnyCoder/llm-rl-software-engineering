@@ -42,6 +42,7 @@ jobs:
         run: >-
           uvx --from pytest==9.1.1 pytest -q
           tests/test_config.py
+          tests/test_curriculum_audit.py
           tests/test_logging.py
           tests/test_metrics.py
           tests/test_parser.py
