@@ -83,3 +83,19 @@ def test_resume_rejects_changed_resolved_configuration(tmp_path: Path) -> None:
         PipelineContext.open(first.config, logger)
 
     logger.close()
+
+
+def test_context_requires_an_immutable_prepared_sandbox_image(tmp_path: Path) -> None:
+    """Expose only the Docker digest recorded by preparation to later phases."""
+    # A new context has no trusted image until the prepare phase completes.
+    context = _context(tmp_path)
+    with pytest.raises(RuntimeError, match="prepared sandbox image"):
+        context.prepared_sandbox_image()
+
+    # Docker image IDs are algorithm-qualified immutable content identifiers.
+    image_id = "sha256:" + "a" * 64
+    context.state["prepare"] = {"sandbox_image_id": image_id}
+
+    # Training and evaluation consume the immutable ID rather than the mutable local tag.
+    assert context.prepared_sandbox_image() == image_id
+    context.logger.close()

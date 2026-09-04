@@ -19,6 +19,7 @@ import torch
 from datasets import Dataset  # type: ignore[import-untyped]
 from peft import LoraConfig
 from transformers import TrainerCallback, TrainerControl, TrainerState, TrainingArguments, set_seed
+from transformers.integrations import TrackioCallback  # type: ignore[attr-defined]
 from transformers.trainer_utils import get_last_checkpoint
 from trl.trainer.grpo_config import GRPOConfig
 from trl.trainer.grpo_trainer import GRPOTrainer
@@ -96,7 +97,10 @@ def build_grpo_config(
         seed=config.training.seed,
         data_seed=config.training.seed,
         dataloader_num_workers=0,
-        report_to="trackio",
+        # Register the filtered Trackio callback explicitly below.  Current TRL can emit
+        # `None` extrema for an entirely clipped batch, while Trackio 0.37 mistakes a
+        # `None` value for an unloaded pyplot module and warns during metric conversion.
+        report_to="none",
         project="minibug-rl",
         trackio_space_id=trackio_space_id,
         log_completions=False,
@@ -108,8 +112,7 @@ def _logged_values(history: list[dict[str, Any]], key: str) -> list[float]:
     return [
         float(record[key])
         for record in history
-        if isinstance(record.get(key), (int, float))
-        and not isinstance(record.get(key), bool)
+        if isinstance(record.get(key), (int, float)) and not isinstance(record.get(key), bool)
     ]
 
 
@@ -175,9 +178,7 @@ class AuditCallback(TrainerCallback):
             None,
         )
         if zero_fraction is not None:
-            self.zero_variance_streak = (
-                self.zero_variance_streak + 1 if zero_fraction > 0.8 else 0
-            )
+            self.zero_variance_streak = self.zero_variance_streak + 1 if zero_fraction > 0.8 else 0
         if self.zero_variance_streak >= self.zero_variance_limit:
             self.logger.message(
                 "reward_collapse",
@@ -189,10 +190,47 @@ class AuditCallback(TrainerCallback):
         return control
 
 
+class NonNullTrackioCallback(TrackioCallback):
+    """Keep Transformers' Trackio lifecycle while dropping undefined TRL metrics.
+
+    Sources:
+    - https://huggingface.co/docs/transformers/main/en/trainer_callbacks
+    - https://huggingface.co/docs/trackio/api#trackio.log
+    """
+
+    def __init__(self) -> None:
+        """Initialize Transformers' installed Trackio integration unchanged."""
+        # Transformers does not annotate this third-party integration constructor.
+        super().__init__()  # type: ignore[no-untyped-call]
+
+    def on_log(
+        self,
+        args: TrainingArguments,
+        state: TrainerState,
+        control: TrainerControl,
+        model: Any = None,
+        logs: dict[str, Any] | None = None,
+        **kwargs: Any,
+    ) -> None:
+        """Forward every defined value and retain the official callback's setup/finish."""
+        # `None` means TRL could not define an extremum; it is not a scalar observation.
+        defined_logs = {key: value for key, value in (logs or {}).items() if value is not None}
+        super().on_log(  # type: ignore[no-untyped-call]
+            args,
+            state,
+            control,
+            model=model,
+            logs=defined_logs,
+            **kwargs,
+        )
+
+
 def run_training(
     config: RunConfig,
     logger: RunLogger,
     output_directory: str | Path,
+    *,
+    sandbox_image: str,
 ) -> dict[str, Any]:
     """Run one local GRPO experiment and save a reloadable adapter plus exact state."""
     destination = Path(output_directory).expanduser().resolve()
@@ -216,8 +254,12 @@ def run_training(
         run_name=f"{logger.directory.name}-{destination.name}",
         trackio_space_id=os.getenv("TRACKIO_SPACE_ID") or None,
     )
-    reward = build_grpo_reward(DockerSandbox(image=config.project.sandbox_image), logger)
+    # Every rollout uses the exact image digest recorded before baseline measurement.
+    reward = build_grpo_reward(DockerSandbox(image=sandbox_image), logger)
     callback = AuditCallback(logger)
+    # Passing the integration explicitly lets us sanitize undefined TRL extrema while
+    # preserving Transformers' documented Trackio init, log, and finish lifecycle.
+    trackio_callback = NonNullTrackioCallback()
     checkpoint_directory = destination / "checkpoints"
     resume_checkpoint = (
         # Transformers does not expose annotations for this otherwise stable utility.
@@ -232,6 +274,7 @@ def run_training(
         tasks=len(tasks),
         max_steps=config.training.max_steps,
         generations=config.training.num_generations,
+        sandbox_image=sandbox_image,
         resume_checkpoint=resume_checkpoint,
     )
     # GRPOTrainer applies `peft_config` before optimizer creation for the standard backend.
@@ -242,7 +285,7 @@ def run_training(
         train_dataset=dataset,
         processing_class=tokenizer,
         peft_config=peft_config,
-        callbacks=[callback],
+        callbacks=[trackio_callback, callback],
     )
     parameter_counts = trainable_parameter_counts(trainer.model)
     trainable_before = _trainable_snapshot(trainer.model)
@@ -284,6 +327,7 @@ def run_training(
         "adapter_directory": str(adapter_directory),
         "global_step": int(trainer.state.global_step),
         "training_loss": float(result.training_loss),
+        "sandbox_image": sandbox_image,
         "peak_vram_bytes": peak_memory,
         "prompt_tokens_max": max(lengths.values()),
         "prompt_tokens_min": min(lengths.values()),

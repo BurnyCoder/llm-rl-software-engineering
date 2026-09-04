@@ -77,8 +77,7 @@ def score_completion(
         )
     # Compare every actual value only after the isolated process has terminated.
     passed = sum(
-        _equal(actual, test.expected)
-        for actual, test in zip(execution.outputs, tests, strict=True)
+        _equal(actual, test.expected) for actual, test in zip(execution.outputs, tests, strict=True)
     )
     total_cases = len(tests)
     pass_fraction = passed / total_cases if total_cases else 0.0

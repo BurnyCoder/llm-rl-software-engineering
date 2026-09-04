@@ -280,8 +280,7 @@ def run_json_container(
         return JsonContainerExecution(
             status="infrastructure_error",
             error=(
-                f"Invalid sandbox response: {error}. "
-                f"Docker diagnostic: {_bounded_text(stderr)}"
+                f"Invalid sandbox response: {error}. Docker diagnostic: {_bounded_text(stderr)}"
             ),
             duration_seconds=time.monotonic() - started,
         )

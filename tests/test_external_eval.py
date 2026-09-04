@@ -52,10 +52,7 @@ def _row(index: int = 0) -> dict[str, str]:
         "entry_point": entry_point,
         "import": "",
         "test_setup": "",
-        "test": (
-            f"def check(candidate):\n    assert candidate(7) == 7\n"
-            f"check({entry_point})\n"
-        ),
+        "test": (f"def check(candidate):\n    assert candidate(7) == 7\ncheck({entry_point})\n"),
         "example_test": "",
         "signature": f"{entry_point}(value)",
         "docstring": "Return value unchanged.",
@@ -98,9 +95,7 @@ def test_adapter_matches_official_docs_prompt_without_test_or_gold_leakage() -> 
     assert task.buggy_source == _row()["prompt"] + _row()["buggy_solution"]
     # The BigCode harness asks for the repair and then repeats the prefix for completion.
     expected_prompt = (
-        task.buggy_source
-        + f"\nFix bugs in {task.function_name}.\n\n"
-        + task.completion_prefix
+        task.buggy_source + f"\nFix bugs in {task.function_name}.\n\n" + task.completion_prefix
     ).strip()
     assert task.model_prompt == expected_prompt
     # Neither the gold body nor held-out assertion script is visible to generation.
@@ -156,6 +151,15 @@ def test_loader_rejects_schema_drift_and_duplicate_ids() -> None:
     with (
         patch("minibug_rl.external_eval.load_dataset", return_value=duplicated),
         pytest.raises(ExternalEvaluationDataError, match="Duplicate"),
+    ):
+        load_humanevalfix()
+
+    # A unique but substituted ID would make resumed evidence describe another corpus.
+    substituted = _complete_dataset()
+    substituted[-1]["task_id"] = "Python/999"
+    with (
+        patch("minibug_rl.external_eval.load_dataset", return_value=substituted),
+        pytest.raises(ExternalEvaluationDataError, match="ordered task IDs"),
     ):
         load_humanevalfix()
 

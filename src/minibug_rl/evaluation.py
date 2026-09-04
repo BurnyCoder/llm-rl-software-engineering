@@ -40,7 +40,7 @@ def _decode_new_tokens(tokenizer: Any, generated: Any, prompt_tokens: int) -> li
     ]
 
 
-def _generate(
+def generate_completions(
     model: Any,
     tokenizer: Any,
     prompt: str,
@@ -75,6 +75,7 @@ def evaluate_internal(
     *,
     split: str,
     label: str,
+    sandbox_image: str,
     adapter_path: str | Path | None = None,
     sampled_k: int | None = None,
 ) -> dict[str, Any]:
@@ -90,7 +91,8 @@ def evaluate_internal(
         for_training=False,
     )
     model.eval()
-    executor = DockerSandbox(image=config.project.sandbox_image)
+    # The prepare-phase digest prevents a mutable local tag from changing scoring code.
+    executor = DockerSandbox(image=sandbox_image)
     reward_cache = RewardCache(logger.directory / "reward-cache.sqlite3")
     records: list[EvaluationRecord] = []
     detailed: list[dict[str, Any]] = []
@@ -104,7 +106,7 @@ def evaluate_internal(
             (
                 "greedy",
                 0,
-                _generate(
+                generate_completions(
                     model,
                     tokenizer,
                     prompt,
@@ -116,7 +118,7 @@ def evaluate_internal(
                 )[0],
             )
         ]
-        sampled = _generate(
+        sampled = generate_completions(
             model,
             tokenizer,
             prompt,
@@ -165,6 +167,7 @@ def evaluate_internal(
             "split": split,
             "model": str(adapter_path) if adapter_path is not None else config.model.base_model,
             "base_revision": config.model.revision,
+            "sandbox_image": sandbox_image,
             "sampled_k": selected_k,
             "duration_seconds": time.monotonic() - started,
             "peak_vram_bytes": int(torch.cuda.max_memory_allocated()),

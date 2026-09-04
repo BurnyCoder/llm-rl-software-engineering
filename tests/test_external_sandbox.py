@@ -226,6 +226,7 @@ def test_docker_start_failure_is_infrastructure_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Surface a missing daemon separately from executable repair evidence."""
+
     # OSError is the documented startup failure raised by subprocess.Popen.
     def missing_docker(*_args: Any, **_kwargs: Any) -> None:
         """Raise the same error shape as an unavailable Docker executable."""
@@ -251,7 +252,7 @@ def test_docker_start_failure_is_infrastructure_error(
 def test_real_docker_script_pass_failure_timeout_and_invalid_suite() -> None:
     """Exercise both trust domains through the actual hardened image."""
     # One executor instance keeps image and limit choices identical for all outcomes.
-    sandbox = DockerPythonTestSandbox(timeout_seconds=1)
+    sandbox = DockerPythonTestSandbox(timeout_seconds=3)
     # Passing and failing suites differ only in their expected assertion value.
     passed = sandbox.execute(
         _payload("assert repair(2) == 4"),
@@ -262,7 +263,7 @@ def test_real_docker_script_pass_failure_timeout_and_invalid_suite() -> None:
         "def repair(value):\n    return value * 2",
     )
     # Infinite candidate execution must be terminated by the host container deadline.
-    timeout = sandbox.execute(
+    timeout = DockerPythonTestSandbox(timeout_seconds=1).execute(
         _payload("assert repair(1) == 1"),
         "def repair(value):\n    while True:\n        pass",
     )
@@ -271,6 +272,11 @@ def test_real_docker_script_pass_failure_timeout_and_invalid_suite() -> None:
         _payload("assert repair("),
         "def repair(value):\n    return value",
     )
+    # The pinned HumanEvalPack harness imports NumPy for every Python candidate.
+    numpy_passed = sandbox.execute(
+        _payload("assert repair([1, 2, 3]) == 6"),
+        "import numpy as np\n\ndef repair(values):\n    return int(np.sum(values))",
+    )
 
     # Real outcomes prove the unit-level byte protocol matches the image implementation.
     assert passed.status == "passed"
@@ -278,3 +284,4 @@ def test_real_docker_script_pass_failure_timeout_and_invalid_suite() -> None:
     assert failed.error_type == "AssertionError"
     assert timeout.status == "timeout"
     assert invalid_suite.status == "infrastructure_error"
+    assert numpy_passed.status == "passed"

@@ -17,6 +17,11 @@ def run_train(context: PipelineContext) -> dict[str, Any]:
         context.config.project.artifact_root / "runs" / context.logger.directory.name / "main"
     )
     context.logger.message("phase_start", "Running the main GRPO experiment.", phase="train")
-    result = run_training(context.config, context.logger, destination)
+    result = run_training(
+        context.config,
+        context.logger,
+        destination,
+        sandbox_image=context.prepared_sandbox_image(),
+    )
     context.record("train", result)
     return result

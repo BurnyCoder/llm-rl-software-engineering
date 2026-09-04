@@ -710,7 +710,7 @@
     "difficulty": "medium",
     "specification": "Return true for Gregorian leap years: divisible by 4, except century years unless divisible by 400.",
     "function_name": "is_leap_year",
-    "buggy_code": "def is_leap_year(year):\n    return year % 4 == 0",
+    "buggy_code": "def is_leap_year(year):\n    if year % 100 == 0:\n        return False\n    return year % 4 == 0",
     "public_tests": [
       {"args": [1900], "kwargs": {}, "expected": false},
       {"args": [2024], "kwargs": {}, "expected": true}
@@ -731,12 +731,12 @@
     "function_name": "shift_lowercase_letter",
     "buggy_code": "def shift_lowercase_letter(letter):\n    return chr(ord(letter) + 1)",
     "public_tests": [
-      {"args": ["z"], "kwargs": {}, "expected": "a"},
+      {"args": ["y"], "kwargs": {}, "expected": "z"},
       {"args": ["b"], "kwargs": {}, "expected": "c"}
     ],
     "hidden_tests": [
       {"args": ["a"], "kwargs": {}, "expected": "b"},
-      {"args": ["y"], "kwargs": {}, "expected": "z"},
+      {"args": ["z"], "kwargs": {}, "expected": "a"},
       {"args": ["m"], "kwargs": {}, "expected": "n"},
       {"args": ["x"], "kwargs": {}, "expected": "y"}
     ]
@@ -1061,7 +1061,7 @@
       {"args": [[], 3], "kwargs": {}, "expected": 0},
       {"args": [[1, 2, 3], 4], "kwargs": {}, "expected": 0},
       {"args": [[0, 0, 0], 0], "kwargs": {}, "expected": 3},
-      {"args": [[true, false, true], true], "kwargs": {}, "expected": 2}
+      {"args": [[[1], [1], [2]], [1]], "kwargs": {}, "expected": 2}
     ]
   },
   {

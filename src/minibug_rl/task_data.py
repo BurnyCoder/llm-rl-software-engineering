@@ -28,6 +28,93 @@ class TaskDataError(ValueError):
     """Identify malformed or leakage-prone curriculum data before training begins."""
 
 
+class _BindingCollector(ast.NodeVisitor):
+    """Collect function-local bindings in deterministic AST traversal order."""
+
+    def __init__(self) -> None:
+        """Start with no observed bindings."""
+        self.identifiers: list[str] = []
+
+    def _remember(self, value: str) -> None:
+        """Retain each binding once at its first declaration or assignment."""
+        if value not in self.identifiers:
+            self.identifiers.append(value)
+
+    def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+        """Treat a function name as a binding before its arguments and body."""
+        self._remember(node.name)
+        self.generic_visit(node)
+
+    def visit_arg(self, node: ast.arg) -> None:
+        """Record positional, keyword-only, variadic, and lambda parameters."""
+        self._remember(node.arg)
+        self.generic_visit(node)
+
+    def visit_Name(self, node: ast.Name) -> None:
+        """Record local assignment and deletion targets but preserve free names."""
+        if isinstance(node.ctx, (ast.Store, ast.Del)):
+            self._remember(node.id)
+
+
+class _StructuralNormalizer(ast.NodeTransformer):
+    """Alpha-normalize local bindings and literal values for template matching."""
+
+    def __init__(self, tree: ast.AST) -> None:
+        """Create positional placeholders from one preordered binding pass."""
+        collector = _BindingCollector()
+        collector.visit(tree)
+        self._identifiers = {
+            identifier: f"name_{index}" for index, identifier in enumerate(collector.identifiers)
+        }
+
+    def visit_FunctionDef(self, node: ast.FunctionDef) -> ast.AST:
+        """Normalize a function binding while retaining decorators, arguments, and body."""
+        node.name = self._identifiers[node.name]
+        return self.generic_visit(node)
+
+    def visit_arg(self, node: ast.arg) -> ast.AST:
+        """Normalize a bound parameter while preserving its annotation and default shape."""
+        node.arg = self._identifiers[node.arg]
+        return self.generic_visit(node)
+
+    def visit_Name(self, node: ast.Name) -> ast.AST:
+        """Rename local references consistently and retain semantic free/builtin names."""
+        node.id = self._identifiers.get(node.id, node.id)
+        return node
+
+    def visit_Constant(self, node: ast.Constant) -> ast.AST:
+        """Replace literal values with type-specific sentinels while preserving node shape."""
+        value = node.value
+        if value is None:
+            normalized: Any = None
+        elif isinstance(value, bool):
+            normalized = False
+        elif isinstance(value, int):
+            normalized = 0
+        elif isinstance(value, float):
+            normalized = 0.0
+        elif isinstance(value, complex):
+            normalized = 0j
+        elif isinstance(value, str):
+            normalized = ""
+        elif isinstance(value, bytes):
+            normalized = b""
+        else:
+            normalized = value
+        return ast.copy_location(ast.Constant(value=normalized, kind=node.kind), node)
+
+
+def structural_fingerprint(source: str) -> str:
+    """Hash code shape independent of identifier spellings and literal values.
+
+    Source: https://docs.python.org/3/library/ast.html#ast.NodeTransformer
+    """
+    tree = ast.parse(source, mode="exec")
+    normalized = _StructuralNormalizer(tree).visit(tree)
+    dumped = ast.dump(normalized, annotate_fields=True, include_attributes=False)
+    return hashlib.sha256(dumped.encode("utf-8")).hexdigest()
+
+
 def _mapping(value: Any, label: str) -> Mapping[str, Any]:
     """Require a JSON object at one schema location."""
     # Precise labels make hand-authored task mistakes fast to locate.
@@ -170,10 +257,11 @@ def validate_split_manifest(task_path: str | Path, manifest_path: str | Path) ->
     if not isinstance(raw_tasks, list) or not isinstance(manifest, dict):
         raise TaskDataError("Task or manifest root has an invalid shape")
     entries = manifest.get("tasks")
-    if manifest.get("schema_version") != 1 or not isinstance(entries, dict):
-        raise TaskDataError("Split manifest schema is not version 1")
+    if manifest.get("schema_version") != 2 or not isinstance(entries, dict):
+        raise TaskDataError("Split manifest schema is not version 2")
     counts = {split: 0 for split in _SPLITS}
-    fingerprints: set[str] = set()
+    # Identical templates inside one split are allowed; crossing splits is leakage-prone.
+    fingerprint_splits: dict[str, str] = {}
     for raw in raw_tasks:
         item = _mapping(raw, "manifest task")
         task_id = _string(item.get("id"), "manifest task id")
@@ -187,20 +275,18 @@ def validate_split_manifest(task_path: str | Path, manifest_path: str | Path) ->
             separators=(",", ":"),
         ).encode("utf-8")
         canonical_hash = hashlib.sha256(canonical).hexdigest()
-        normalized_tree = ast.dump(
-            ast.parse(str(item["buggy_code"])),
-            annotate_fields=True,
-            include_attributes=False,
-        )
-        fingerprint = hashlib.sha256(normalized_tree.encode("utf-8")).hexdigest()
+        fingerprint = structural_fingerprint(str(item["buggy_code"]))
         if entry.get("canonical_sha256") != canonical_hash:
             raise TaskDataError(f"Canonical hash mismatch for {task_id}")
         if entry.get("ast_fingerprint") != fingerprint:
             raise TaskDataError(f"AST fingerprint mismatch for {task_id}")
-        if fingerprint in fingerprints:
-            raise TaskDataError(f"Duplicate AST fingerprint for {task_id}")
-        fingerprints.add(fingerprint)
         split = str(item["split"])
+        if entry.get("split") != split:
+            raise TaskDataError(f"Manifest split mismatch for {task_id}")
+        previous_split = fingerprint_splits.get(fingerprint)
+        if previous_split is not None and previous_split != split:
+            raise TaskDataError(f"Cross-split structural duplicate for {task_id}")
+        fingerprint_splits[fingerprint] = split
         counts[split] = counts.get(split, 0) + 1
     if set(entries) != {str(item["id"]) for item in raw_tasks}:
         raise TaskDataError("Manifest task IDs do not exactly match the curriculum")

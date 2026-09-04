@@ -41,14 +41,16 @@ def _model_card(config: RunConfig, evaluation: dict[str, Any], source_commit: st
     base = evaluation["base_test"]["summary"]
     selected = evaluation["selected_test"]["summary"]
     interval = evaluation["test_interval"]
+    external_base = evaluation["external_base"]["summary"]
+    external_selected = evaluation["external_selected"]["summary"]
+    external_interval = evaluation["external_interval"]
+    external_tasks = int(external_selected["tasks"])
+    external_timeout = float(external_selected["sandbox_timeout_seconds"])
     outcome = "passed" if evaluation["learning_success"] else "did not pass"
     sampled_k = int(selected["sampled_k"])
     base_sampled = float(base[f"sampled_pass_at_{int(base['sampled_k'])}"])
     selected_sampled = float(selected[f"sampled_pass_at_{sampled_k}"])
-    source_url = (
-        "https://github.com/BurnyCoder/llm-rl-software-engineering/commit/"
-        f"{source_commit}"
-    )
+    source_url = f"https://github.com/BurnyCoder/llm-rl-software-engineering/commit/{source_commit}"
     lines = [
         "---",
         f"base_model: {config.model.base_model}",
@@ -95,10 +97,7 @@ def _model_card(config: RunConfig, evaluation: dict[str, Any], source_commit: st
             f"{base['greedy_hidden_test_fraction']:.4f} | "
             f"{selected['greedy_hidden_test_fraction']:.4f} |"
         ),
-        (
-            f"| Sampled pass@{sampled_k} | {base_sampled:.4f} | "
-            f"{selected_sampled:.4f} |"
-        ),
+        (f"| Sampled pass@{sampled_k} | {base_sampled:.4f} | {selected_sampled:.4f} |"),
         "",
         (
             "Paired hidden-test-fraction difference: "
@@ -109,6 +108,38 @@ def _model_card(config: RunConfig, evaluation: dict[str, Any], source_commit: st
             f"The pre-registered validation learning gate **{outcome}**. These small "
             "synthetic-split measurements should not be generalized to SWE-bench."
         ),
+        "",
+        "## Frozen external HumanEvalFix result",
+        "",
+        "| Metric | Base | Selected model |",
+        "|---|---:|---:|",
+        (
+            f"| Greedy pass@1 ({external_tasks} Python repairs) | "
+            f"{external_base['pass_at_1']:.4f} | "
+            f"{external_selected['pass_at_1']:.4f} |"
+        ),
+        f"| Timeouts | {int(external_base['timeouts'])} | {int(external_selected['timeouts'])} |",
+        "",
+        (
+            f"Protocol: `{external_selected['benchmark']}` at immutable dataset revision "
+            f"`{external_selected['benchmark_revision']}`, prompt variant "
+            f"`{external_selected['prompt_variant']}`, greedy `n=1`."
+        ),
+        (
+            "Paired pass@1 difference: "
+            f"`{external_interval['mean_difference']:.4f}` with bootstrap 95% interval "
+            f"`[{external_interval['lower_95']:.4f}, {external_interval['upper_95']:.4f}]`."
+        ),
+        (
+            "HumanEvalFix was never used for training, reward design, checkpoint selection, "
+            "or tuning. Public benchmark contamination may still affect both policies."
+        ),
+        (
+            f"Candidates ran under MiniBug-RL's hardened {external_timeout:g}-second Docker "
+            "deadline rather than the pinned BigCode Python harness's 10-second limit; treat "
+            "this as a MiniBug-sandbox measurement, not a directly comparable leaderboard score."
+        ),
+        f"Sandbox image: `{external_selected['sandbox_image']}`.",
         "",
         "## Load the resulting model",
         "",

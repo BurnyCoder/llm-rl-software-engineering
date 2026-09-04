@@ -35,7 +35,12 @@ def run_smoke(context: PipelineContext) -> dict[str, Any]:
     smoke_config = replace(base, model=smoke_model, training=smoke_training)
     destination = base.project.artifact_root / "runs" / context.logger.directory.name / "smoke"
     context.logger.message("phase_start", "Running the two-step GRPO smoke gate.", phase="smoke")
-    result = run_training(smoke_config, context.logger, destination)
+    result = run_training(
+        smoke_config,
+        context.logger,
+        destination,
+        sandbox_image=context.prepared_sandbox_image(),
+    )
     adapter_path = Path(str(result["adapter_directory"]))
     # A real PEFT reload catches incomplete checkpoints before the 100-step allocation.
     reloaded = load_transformers_model(
