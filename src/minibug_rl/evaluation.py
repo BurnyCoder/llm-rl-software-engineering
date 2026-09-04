@@ -11,7 +11,6 @@ Sources:
 from __future__ import annotations
 
 import gc
-import json
 import time
 from collections.abc import Mapping
 from dataclasses import asdict
@@ -73,9 +72,13 @@ _INTERNAL_OUTCOME_STATUSES = {
 
 def _is_finite_number(value: object) -> bool:
     """Accept JSON integer/float values while excluding booleans and non-finite values."""
-    return (
-        not isinstance(value, bool) and isinstance(value, (int, float)) and isfinite(float(value))
-    )
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return False
+    try:
+        return isfinite(float(value))
+    except OverflowError:
+        # JSON integers are unbounded, whereas conversion to a finite float is not.
+        return False
 
 
 def internal_result_is_complete(
@@ -386,11 +389,7 @@ def evaluate_internal(
         record.task_id: record.hidden_fraction for record in records if record.mode == "greedy"
     }
     result = {"summary": summary, "task_scores": task_scores, "records": detailed}
-    output_path = logger.directory / f"evaluation-{label}.json"
-    output_path.write_text(
-        json.dumps(result, indent=2, ensure_ascii=False) + "\n",
-        encoding="utf-8",
-    )
+    logger.write_json(f"evaluation-{label}.json", result)
     logger.message("evaluation_complete", f"Completed evaluation {label}.", **summary)
     del model, tokenizer
     gc.collect()

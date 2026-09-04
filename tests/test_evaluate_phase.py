@@ -109,6 +109,39 @@ def _configured_test_ids(context: PipelineContext) -> list[str]:
     return [task.id for task in tasks_for_split(tasks, "test")]
 
 
+def _resume_internal_result(
+    context: PipelineContext,
+    monkeypatch: pytest.MonkeyPatch,
+    saved_text: str,
+) -> tuple[dict[str, Any], list[str], list[Path]]:
+    """Exercise one stale internal artifact through the real resume coordinator."""
+    result_path = context.logger.directory / "evaluation-base-test-final.json"
+    result_path.write_text(saved_text, encoding="utf-8")
+    calls: list[str] = []
+
+    def fake_evaluate(
+        _config: Any,
+        _logger: Any,
+        *,
+        split: str,
+        label: str,
+        sandbox_image: str,
+        adapter_path: str | Path | None = None,
+        sampled_k: int | None = None,
+    ) -> dict[str, Any]:
+        """Return fresh evidence after the saved artifact is rejected."""
+        del adapter_path, sampled_k
+        assert split == "test"
+        assert sandbox_image == SANDBOX_IMAGE
+        calls.append(label)
+        return {"fresh": True}
+
+    monkeypatch.setattr(evaluate_phase, "evaluate_internal", fake_evaluate)
+    result = evaluate_phase._evaluate_final_once(context, label="base-test-final")
+    stale_paths = list(context.logger.directory.glob("evaluation-base-test-final.stale-*.json"))
+    return result, calls, stale_paths
+
+
 def _external_result(
     label: str,
     passed: int,
@@ -367,7 +400,12 @@ def test_final_test_result_file_is_reused_after_interruption(
 
 @pytest.mark.parametrize(
     "corruption",
-    ["empty-records", "missing-sampled-record", "mismatched-task-score"],
+    [
+        "empty-records",
+        "missing-sampled-record",
+        "mismatched-task-score",
+        "oversized-duration",
+    ],
 )
 def test_incomplete_internal_result_is_preserved_as_stale_and_recomputed(
     tmp_path: Path,
@@ -389,36 +427,35 @@ def test_incomplete_internal_result_is_preserved_as_stale_and_recomputed(
         stale["records"] = []
     elif corruption == "missing-sampled-record":
         stale["records"].pop()
-    else:
+    elif corruption == "mismatched-task-score":
         stale["task_scores"][task_ids[0]] = 0.99
-    result_path = context.logger.directory / "evaluation-base-test-final.json"
-    result_path.write_text(json.dumps(stale), encoding="utf-8")
-    calls: list[str] = []
-
-    def fake_evaluate(
-        _config: Any,
-        _logger: Any,
-        *,
-        split: str,
-        label: str,
-        sandbox_image: str,
-        adapter_path: str | Path | None = None,
-        sampled_k: int | None = None,
-    ) -> dict[str, Any]:
-        """Return fresh evidence after rejecting the corrupted saved artifact."""
-        del adapter_path, sampled_k
-        assert split == "test"
-        assert sandbox_image == SANDBOX_IMAGE
-        calls.append(label)
-        return {"fresh": True}
-
-    monkeypatch.setattr(evaluate_phase, "evaluate_internal", fake_evaluate)
-
-    result = evaluate_phase._evaluate_final_once(context, label="base-test-final")
+    else:
+        # This remains valid JSON but overflows Python's int-to-float conversion.
+        stale["summary"]["duration_seconds"] = 10**400
+    result, calls, stale_paths = _resume_internal_result(
+        context,
+        monkeypatch,
+        json.dumps(stale),
+    )
 
     assert result == {"fresh": True}
     assert calls == ["base-test-final"]
-    assert list(context.logger.directory.glob("evaluation-base-test-final.stale-*.json"))
+    assert len(stale_paths) == 1
+    context.logger.close()
+
+
+def test_truncated_internal_result_is_preserved_as_stale_and_recomputed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Recover from a legacy or interrupted non-atomic internal result write."""
+    context = _context(tmp_path)
+    truncated = '{"summary":'
+    result, calls, stale_paths = _resume_internal_result(context, monkeypatch, truncated)
+    assert result == {"fresh": True}
+    assert calls == ["base-test-final"]
+    assert len(stale_paths) == 1
+    assert stale_paths[0].read_text(encoding="utf-8") == truncated
     context.logger.close()
 
 
@@ -439,34 +476,15 @@ def test_final_test_result_with_wrong_same_count_ids_is_stale_and_recomputed(
             "sampled_k": context.config.evaluation.sample_generations,
         }
     )
-    result_path = context.logger.directory / "evaluation-base-test-final.json"
-    result_path.write_text(json.dumps(stale), encoding="utf-8")
-    calls: list[str] = []
-
-    def fake_evaluate(
-        _config: Any,
-        _logger: Any,
-        *,
-        split: str,
-        label: str,
-        sandbox_image: str,
-        adapter_path: str | Path | None = None,
-        sampled_k: int | None = None,
-    ) -> dict[str, Any]:
-        """Return fresh evidence after exact configured task validation rejects the file."""
-        del adapter_path, sampled_k
-        assert split == "test"
-        assert sandbox_image == SANDBOX_IMAGE
-        calls.append(label)
-        return {"fresh": True}
-
-    monkeypatch.setattr(evaluate_phase, "evaluate_internal", fake_evaluate)
-
-    result = evaluate_phase._evaluate_final_once(context, label="base-test-final")
+    result, calls, stale_paths = _resume_internal_result(
+        context,
+        monkeypatch,
+        json.dumps(stale),
+    )
 
     assert result == {"fresh": True}
     assert calls == ["base-test-final"]
-    assert list(context.logger.directory.glob("evaluation-base-test-final.stale-*.json"))
+    assert len(stale_paths) == 1
     context.logger.close()
 
 

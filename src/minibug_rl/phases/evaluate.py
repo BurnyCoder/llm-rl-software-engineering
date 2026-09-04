@@ -44,7 +44,11 @@ def _evaluate_final_once(
     """Reuse a complete final-test result file after an interrupted phase rerun."""
     result_path = context.logger.directory / f"evaluation-{label}.json"
     if result_path.exists():
-        loaded = json.loads(result_path.read_text(encoding="utf-8"))
+        try:
+            loaded = json.loads(result_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            # Legacy non-atomic writes may be truncated; preserve them like other stale evidence.
+            loaded = None
         test_tasks = tasks_for_split(load_tasks(context.config.project.data_file), "test")
         expected_task_ids = {task.id for task in test_tasks}
         expected_model = (
