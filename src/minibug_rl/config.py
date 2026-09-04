@@ -39,6 +39,10 @@ class ModelConfig:
     dtype: str
     max_prompt_length: int
     max_completion_length: int
+    # `transformers` is the reproducible default; `unsloth` is an explicit optional profile.
+    backend: str = "transformers"
+    # Four-bit loading is enabled only for the corrected DebugArena-derived fallback.
+    load_in_4bit: bool = False
 
 
 @dataclass(frozen=True)
@@ -158,6 +162,8 @@ def load_run_config(
             _required(model_data, "max_completion_length", "model"),
             "model.max_completion_length",
         ),
+        backend=str(model_data.get("backend", "transformers")),
+        load_in_4bit=bool(model_data.get("load_in_4bit", False)),
     )
     training = TrainingConfig(
         seed=int(_required(training_data, "seed", "training")),
@@ -206,5 +212,9 @@ def load_run_config(
         raise ConfigurationError("training.top_p must be in (0, 1]")
     if not 0.0 <= training.warmup_ratio < 1.0:
         raise ConfigurationError("training.warmup_ratio must be in [0, 1)")
+    if model.backend not in {"transformers", "unsloth"}:
+        raise ConfigurationError("model.backend must be 'transformers' or 'unsloth'")
+    if model.load_in_4bit and model.backend != "unsloth":
+        raise ConfigurationError("model.load_in_4bit currently requires the unsloth backend")
     # Return one frozen object used unchanged by all pipeline phases.
     return RunConfig(project, model, training, evaluation)

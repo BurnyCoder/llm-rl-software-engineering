@@ -7,7 +7,18 @@ authors = [
     { name = "BurnyCoder", email = "happymancz@email.cz" }
 ]
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "accelerate==1.14.0",
+    "datasets==5.0.1",
+    "huggingface-hub==1.30.0",
+    "matplotlib==3.11.1",
+    "peft==0.20.0",
+    "python-dotenv==1.2.3",
+    "torch==2.14.0",
+    "trackio==0.37.0",
+    "transformers==5.16.1",
+    "trl==1.12.0",
+]
 
 [project.scripts]
 minibug-rl = "minibug_rl.cli:main"
@@ -15,3 +26,38 @@ minibug-rl = "minibug_rl.cli:main"
 [build-system]
 requires = ["uv_build>=0.11.27,<0.12.0"]
 build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "mypy==2.3.1",
+    "pytest==9.1.1",
+    "pytest-cov==7.1.0",
+    "ruff==0.16.3",
+]
+
+[[tool.uv.index]]
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu130" }
+
+[tool.pytest.ini_options]
+addopts = "-ra --strict-markers"
+markers = [
+    "docker: requires a working local Docker daemon and the MiniBug runner image",
+    "gpu: requires an NVIDIA CUDA GPU and downloaded model weights",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+packages = ["minibug_rl"]

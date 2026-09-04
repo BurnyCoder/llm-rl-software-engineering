@@ -1,0 +1,38 @@
+# Global context: two-step GPU and reward-path gate before the main experiment.
+# Source: https://huggingface.co/docs/trl/grpo_trainer
+
+[project]
+name = "minibug-rl-smoke"
+data_file = "../data/minibug_tasks.json"
+run_root = "../logs"
+artifact_root = "../artifacts"
+sandbox_image = "minibug-rl-sandbox:local"
+
+[model]
+base_model = "Qwen/Qwen2.5-Coder-0.5B-Instruct"
+revision = "ea3f2471cf1b1f0db85067f1ef93848e38e88c25"
+hub_model_id = "BurnyCoder/qwen2.5-coder-0.5b-swe-rl"
+dtype = "bfloat16"
+max_prompt_length = 512
+max_completion_length = 128
+backend = "transformers"
+load_in_4bit = false
+
+[training]
+seed = 42
+max_steps = 2
+num_generations = 2
+per_device_train_batch_size = 1
+gradient_accumulation_steps = 2
+learning_rate = 0.00001
+temperature = 0.9
+top_p = 0.95
+save_steps = 1
+lora_rank = 16
+lora_alpha = 32
+warmup_ratio = 0.05
+max_grad_norm = 0.1
+
+[evaluation]
+sample_generations = 2
+bootstrap_samples = 1000
