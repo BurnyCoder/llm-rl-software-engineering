@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any, cast
 
 from minibug_rl.context import PipelineContext
-from minibug_rl.evaluation import evaluate_internal
+from minibug_rl.evaluation import evaluate_internal, internal_result_is_complete
 from minibug_rl.external_evaluation import evaluate_external, external_result_is_complete
 from minibug_rl.metrics import paired_bootstrap_interval
 from minibug_rl.run_logging import utc_timestamp
@@ -45,28 +45,20 @@ def _evaluate_final_once(
     result_path = context.logger.directory / f"evaluation-{label}.json"
     if result_path.exists():
         loaded = json.loads(result_path.read_text(encoding="utf-8"))
-        summary = loaded.get("summary") if isinstance(loaded, dict) else None
-        scores = loaded.get("task_scores") if isinstance(loaded, dict) else None
-        if not isinstance(summary, dict) or not isinstance(scores, dict):
-            raise ValueError(f"Saved final-test result {result_path} is malformed")
         test_tasks = tasks_for_split(load_tasks(context.config.project.data_file), "test")
         expected_task_ids = {task.id for task in test_tasks}
-        expected_task_count = len(test_tasks)
         expected_model = (
             str(adapter_path) if adapter_path is not None else context.config.model.base_model
         )
-        reusable = (
-            summary.get("label") == label
-            and summary.get("split") == "test"
-            and summary.get("model") == expected_model
-            and summary.get("base_revision") == context.config.model.revision
-            and summary.get("sandbox_image") == context.prepared_sandbox_image()
-            and summary.get("sampled_k") == context.config.evaluation.sample_generations
-            and summary.get("tasks") == expected_task_count
-            and len(scores) == expected_task_count
-            and set(scores) == expected_task_ids
-        )
-        if reusable:
+        if internal_result_is_complete(
+            loaded,
+            label=label,
+            model=expected_model,
+            base_revision=context.config.model.revision,
+            sandbox_image=context.prepared_sandbox_image(),
+            sampled_k=context.config.evaluation.sample_generations,
+            expected_task_ids=expected_task_ids,
+        ):
             context.logger.message(
                 "final_test_reused",
                 f"Reusing completed final-test evidence for {label}.",

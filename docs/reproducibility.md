@@ -223,8 +223,9 @@ The supported recovery unit is a phase:
 - main and smoke training use the last checkpoint found in their checkpoint directory;
 - an existing completed training result causes a forced rerun to use a timestamped
   sibling rather than overwrite evidence;
-- final internal test sides can be reused only when their summary selectors, configured
-  task count, and exact configured test-task ID set match; and
+- final internal test sides can be reused only when their summary selectors, exact
+  test-task IDs, one-greedy-plus-configured-samples record grid, detailed reward rows,
+  recomputed aggregates, and paired task scores all agree; and
 - external evidence is reused only after strict validation of all 164 ordered records,
   sample indices, statuses, aggregates, exact score keys, model, base/data revision,
   prompt variant, token limit, image ID, and timeout.
