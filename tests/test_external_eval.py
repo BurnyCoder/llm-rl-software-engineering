@@ -121,7 +121,7 @@ def test_generated_suffix_and_script_tests_form_a_docker_json_request() -> None:
     # The harness generates only the body after the repeated function prefix.
     candidate = task.candidate_source("\n    return value\n")
 
-    # A future script-mode Docker runner receives sources as separate JSON fields.
+    # The script-mode Docker runner receives sources as separate JSON fields.
     request = task.tests.build_request(candidate)
 
     # The versioned mode prevents accidental routing through the JSON-call runner.

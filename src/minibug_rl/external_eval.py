@@ -2,8 +2,8 @@
 
 This module only downloads and validates benchmark data. It never executes a row's
 Python source, never creates training rows, and deliberately drops canonical solutions.
-HumanEvalPack's tests are assertion scripts, so they use an explicit future Docker
-script protocol instead of MiniBug-RL's JSON function-call protocol.
+HumanEvalPack's tests are assertion scripts, so they use the explicit Docker script
+protocol instead of MiniBug-RL's JSON function-call protocol.
 
 Primary sources:
 - https://huggingface.co/datasets/bigcode/humanevalpack/blob/9a41762f73a8cb23bb5811b73d5aab164efcf378/README.md

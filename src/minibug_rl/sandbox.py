@@ -1,8 +1,9 @@
 """Global context: safely broker model-produced Python through disposable Docker.
 
-Expected test values stay in this trusted host process. The container receives only
-candidate source and JSON call inputs and returns actual values for host comparison.
-The AST checks and reduced builtins are defense in depth, not security boundaries.
+MiniBug expected values stay in this trusted host process and only call inputs cross
+the boundary. External evaluation sends hidden assertion scripts to the container but
+never to model prompts. AST checks and reduced builtins are defense in depth; Docker
+is the execution boundary.
 
 Sources:
 - https://docs.docker.com/reference/cli/docker/container/run/
@@ -31,6 +32,8 @@ DEFAULT_IMAGE = "minibug-rl-sandbox:local"
 DEFAULT_TIMEOUT_SECONDS = 3.0
 # The image protocol itself uses this limit; repeat it here before JSON parsing.
 MAX_PROTOCOL_BYTES = 512 * 1024
+# Match the runner's fixed standard-input budget before starting a container.
+MAX_REQUEST_BYTES = 256 * 1024
 # Returned diagnostics are useful for logs but must remain bounded independently.
 MAX_DIAGNOSTIC_CHARS = 16 * 1024
 # Cleanup calls must never replace one candidate timeout with another long wait.
@@ -63,6 +66,20 @@ class SandboxResult:
     def all_passed(self) -> bool:
         """Require at least one case and require every case to match."""
         return bool(self.cases) and self.passed_count == len(self.cases)
+
+
+@dataclass(frozen=True, slots=True)
+class JsonContainerExecution:
+    """Carry one generic Docker JSON exchange without assigning reward meaning."""
+
+    # A successful transport contains a validated runner response for its caller.
+    status: str
+    # The response remains protocol-specific until a narrow executor interprets it.
+    response: dict[str, Any] | None = None
+    # Infrastructure and timeout diagnostics never become model-visible feedback.
+    error: str | None = None
+    # Wall time supports timeout audits for both local and external evaluations.
+    duration_seconds: float = 0.0
 
 
 def build_docker_command(
@@ -115,12 +132,12 @@ def _container_name() -> str:
     return f"minibug-{uuid.uuid4().hex}"
 
 
-def _request_bytes(
+def _call_request(
     candidate_code: str,
     function_name: str,
     calls: Sequence[Mapping[str, Any]],
-) -> bytes:
-    """Serialize only source and inputs, rejecting answer-bearing call objects."""
+) -> dict[str, Any]:
+    """Build source-and-input data while rejecting answer-bearing call objects."""
     clean_calls: list[dict[str, Any]] = []
     for call in calls:
         # An exact key set makes accidental hidden-answer transfer fail closed.
@@ -135,17 +152,12 @@ def _request_bytes(
         if not all(isinstance(key, str) for key in kwargs):
             raise ValueError("sandbox keyword argument names must be strings")
         clean_calls.append({"args": list(args), "kwargs": dict(kwargs)})
-    request = {
+    # This object deliberately has no field in which an expected answer can travel.
+    return {
         "code": candidate_code,
         "function_name": function_name,
         "calls": clean_calls,
     }
-    # ``allow_nan=False`` keeps the protocol inside interoperable JSON semantics.
-    return json.dumps(
-        request,
-        allow_nan=False,
-        separators=(",", ":"),
-    ).encode("utf-8")
 
 
 def _cleanup_container(docker_binary: str, container_name: str) -> None:
@@ -177,6 +189,110 @@ def _parse_response(stdout: bytes) -> dict[str, Any]:
     return response
 
 
+def run_json_container(
+    request: Mapping[str, Any],
+    *,
+    image: str = DEFAULT_IMAGE,
+    docker_binary: str = "docker",
+    timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS,
+) -> JsonContainerExecution:
+    """Exchange one bounded JSON object with the shared isolated runner image."""
+    # A monotonic clock cannot move backward if the system time changes during a run.
+    started = time.monotonic()
+    try:
+        # ``allow_nan=False`` keeps the protocol inside interoperable JSON semantics.
+        request_bytes = json.dumps(
+            dict(request),
+            allow_nan=False,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    except (TypeError, ValueError) as error:
+        # Bad host data is an infrastructure error because no candidate ran.
+        return JsonContainerExecution(
+            status="infrastructure_error",
+            error=f"Invalid sandbox request: {error}",
+            duration_seconds=time.monotonic() - started,
+        )
+    # Reject oversize data on the host instead of relying on a truncated container read.
+    if len(request_bytes) > MAX_REQUEST_BYTES:
+        return JsonContainerExecution(
+            status="infrastructure_error",
+            error="Sandbox request exceeds the input limit.",
+            duration_seconds=time.monotonic() - started,
+        )
+    # A unique name lets timeout cleanup target exactly this disposable container.
+    container_name = _container_name()
+    # Both task protocols share one inspectable security policy and immutable image.
+    command = build_docker_command(
+        container_name,
+        image=image,
+        docker_binary=docker_binary,
+    )
+    try:
+        # Argument-vector execution prevents a shell from interpreting supplied source.
+        process = subprocess.Popen(
+            command,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            start_new_session=True,
+        )
+    except OSError as error:
+        # A missing client or daemon is not evidence about the generated candidate.
+        return JsonContainerExecution(
+            status="infrastructure_error",
+            error=f"Could not start Docker: {error}",
+            duration_seconds=time.monotonic() - started,
+        )
+    try:
+        # Python's documented communication API avoids pipe deadlocks while waiting.
+        stdout, stderr = process.communicate(
+            input=request_bytes,
+            timeout=timeout_seconds,
+        )
+    except subprocess.TimeoutExpired:
+        # Stop both the named container and the local client after the host deadline.
+        _cleanup_container(docker_binary, container_name)
+        # Docker cleanup may already have caused the client process to exit.
+        with contextlib.suppress(ProcessLookupError):
+            process.kill()
+        # The second call reaps the child and drains its bounded diagnostic pipes.
+        _stdout, stderr = process.communicate()
+        return JsonContainerExecution(
+            status="timeout",
+            error=(
+                f"Candidate exceeded the {timeout_seconds:g}s host deadline. "
+                f"Docker diagnostic: {_bounded_text(stderr)}"
+            ),
+            duration_seconds=time.monotonic() - started,
+        )
+    # An abnormal Docker client exit means no authenticated runner object is available.
+    if process.returncode != 0:
+        return JsonContainerExecution(
+            status="infrastructure_error",
+            error=f"Docker exited with code {process.returncode}: {_bounded_text(stderr)}",
+            duration_seconds=time.monotonic() - started,
+        )
+    try:
+        # The parser admits exactly one bounded status object from trusted stdout.
+        response = _parse_response(stdout)
+    except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as error:
+        return JsonContainerExecution(
+            status="infrastructure_error",
+            error=(
+                f"Invalid sandbox response: {error}. "
+                f"Docker diagnostic: {_bounded_text(stderr)}"
+            ),
+            duration_seconds=time.monotonic() - started,
+        )
+    # Protocol-specific callers now decide whether the response means pass or failure.
+    return JsonContainerExecution(
+        status="success",
+        response=response,
+        duration_seconds=time.monotonic() - started,
+    )
+
+
 @dataclass(frozen=True, slots=True)
 class DockerSandbox:
     """Execute each candidate in a newly named, resource-limited container."""
@@ -202,69 +318,30 @@ class DockerSandbox:
                 duration_seconds=time.monotonic() - started,
             )
         try:
-            request = _request_bytes(parsed.code, function_name, calls)
+            # The call-specific validator prevents hidden expected values from crossing.
+            request = _call_request(parsed.code, function_name, calls)
         except (TypeError, ValueError) as error:
             return SandboxExecution(
                 status="infrastructure_error",
                 error=f"Invalid sandbox request: {error}",
                 duration_seconds=time.monotonic() - started,
             )
-        container_name = _container_name()
-        command = build_docker_command(
-            container_name,
+        # Shared transport applies the exact same Docker policy as external tests.
+        transport = run_json_container(
+            request,
             image=self.image,
             docker_binary=self.docker_binary,
+            timeout_seconds=self.timeout_seconds,
         )
-        try:
-            # Argument-vector execution avoids a shell interpreting model-controlled text.
-            process = subprocess.Popen(
-                command,
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                start_new_session=True,
-            )
-        except OSError as error:
+        # Timeout and infrastructure states carry no candidate outputs to interpret.
+        if transport.status != "success" or transport.response is None:
             return SandboxExecution(
-                status="infrastructure_error",
-                error=f"Could not start Docker: {error}",
+                status=transport.status,
+                error=transport.error,
                 duration_seconds=time.monotonic() - started,
             )
-        try:
-            stdout, stderr = process.communicate(
-                input=request,
-                timeout=self.timeout_seconds,
-            )
-        except subprocess.TimeoutExpired:
-            _cleanup_container(self.docker_binary, container_name)
-            # Killing the named container can make Docker's client exit first.
-            with contextlib.suppress(ProcessLookupError):
-                process.kill()
-            stdout, stderr = process.communicate()
-            return SandboxExecution(
-                status="timeout",
-                error=(
-                    f"Candidate exceeded the {self.timeout_seconds:g}s host deadline. "
-                    f"Docker diagnostic: {_bounded_text(stderr)}"
-                ),
-                duration_seconds=time.monotonic() - started,
-            )
-        if process.returncode != 0:
-            return SandboxExecution(
-                status="infrastructure_error",
-                error=(f"Docker exited with code {process.returncode}: {_bounded_text(stderr)}"),
-                duration_seconds=time.monotonic() - started,
-            )
-        try:
-            response = _parse_response(stdout)
-        except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as error:
-            return SandboxExecution(
-                status="infrastructure_error",
-                error=(
-                    f"Invalid sandbox response: {error}. Docker diagnostic: {_bounded_text(stderr)}"
-                ),
-                duration_seconds=time.monotonic() - started,
-            )
+        # The ordinary runner protocol is interpreted only after transport succeeds.
+        response = transport.response
         status = response["status"]
         if status != "success":
             detail = str(response.get("error", "candidate execution failed"))

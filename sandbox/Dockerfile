@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-# Global context: run one model-produced Python function behind a minimal boundary.
+# Global context: run one function-call or assertion-script request behind Docker.
 # Source: https://docs.docker.com/reference/dockerfile/
 
 # Pin the official multi-platform Python image by digest for reproducible rebuilds.
@@ -12,7 +12,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 # Keep the immutable runner at one predictable path inside the image.
 WORKDIR /opt/minibug
 
-# Copy only the protocol runner; candidate source arrives through standard input.
+# Copy only the two-protocol runner; all candidate and test source arrives through stdin.
 COPY --chown=65532:65532 runner.py /opt/minibug/runner.py
 
 # A numeric unprivileged identity works without adding mutable account metadata.
