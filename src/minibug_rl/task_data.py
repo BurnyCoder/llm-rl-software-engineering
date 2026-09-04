@@ -9,6 +9,7 @@ Sources:
 from __future__ import annotations
 
 import ast
+import hashlib
 import json
 from collections.abc import Iterable, Mapping, Sequence
 from pathlib import Path
@@ -159,3 +160,52 @@ def training_rows(tasks: Iterable[RepairTask]) -> list[dict[str, Any]]:
             }
         )
     return rows
+
+
+def validate_split_manifest(task_path: str | Path, manifest_path: str | Path) -> dict[str, int]:
+    """Recompute frozen task hashes, AST fingerprints, and registered split counts."""
+    source_path = Path(task_path).expanduser().resolve()
+    raw_tasks = json.loads(source_path.read_text(encoding="utf-8"))
+    manifest = json.loads(Path(manifest_path).expanduser().resolve().read_text(encoding="utf-8"))
+    if not isinstance(raw_tasks, list) or not isinstance(manifest, dict):
+        raise TaskDataError("Task or manifest root has an invalid shape")
+    entries = manifest.get("tasks")
+    if manifest.get("schema_version") != 1 or not isinstance(entries, dict):
+        raise TaskDataError("Split manifest schema is not version 1")
+    counts = {split: 0 for split in _SPLITS}
+    fingerprints: set[str] = set()
+    for raw in raw_tasks:
+        item = _mapping(raw, "manifest task")
+        task_id = _string(item.get("id"), "manifest task id")
+        entry = entries.get(task_id)
+        if not isinstance(entry, dict):
+            raise TaskDataError(f"Manifest has no entry for {task_id}")
+        canonical = json.dumps(
+            item,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+        canonical_hash = hashlib.sha256(canonical).hexdigest()
+        normalized_tree = ast.dump(
+            ast.parse(str(item["buggy_code"])),
+            annotate_fields=True,
+            include_attributes=False,
+        )
+        fingerprint = hashlib.sha256(normalized_tree.encode("utf-8")).hexdigest()
+        if entry.get("canonical_sha256") != canonical_hash:
+            raise TaskDataError(f"Canonical hash mismatch for {task_id}")
+        if entry.get("ast_fingerprint") != fingerprint:
+            raise TaskDataError(f"AST fingerprint mismatch for {task_id}")
+        if fingerprint in fingerprints:
+            raise TaskDataError(f"Duplicate AST fingerprint for {task_id}")
+        fingerprints.add(fingerprint)
+        split = str(item["split"])
+        counts[split] = counts.get(split, 0) + 1
+    if set(entries) != {str(item["id"]) for item in raw_tasks}:
+        raise TaskDataError("Manifest task IDs do not exactly match the curriculum")
+    expected_counts = manifest.get("counts")
+    actual_counts = {**counts, "total": len(raw_tasks)}
+    if expected_counts != actual_counts:
+        raise TaskDataError("Manifest split counts do not match the curriculum")
+    return actual_counts

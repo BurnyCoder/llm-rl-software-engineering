@@ -10,17 +10,21 @@ https://docs.python.org/3/library/hashlib.html
 
 # `ast` parses task source without importing or running it.
 import ast
-# `Counter` computes the required immutable split sizes.
-from collections import Counter
+
 # `hashlib` recomputes every recorded SHA-256 integrity value.
 import hashlib
+
 # `json` loads data and verifies that every case remains JSON serializable.
 import json
-# `Path` resolves fixtures relative to this test instead of the caller's directory.
-from pathlib import Path
+
 # `unittest` keeps this validation runnable with the Python standard library alone.
 import unittest
 
+# `Counter` computes the required immutable split sizes.
+from collections import Counter
+
+# `Path` resolves fixtures relative to this test instead of the caller's directory.
+from pathlib import Path
 
 # The repository root is the parent of the tests directory containing this file.
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
@@ -114,7 +118,15 @@ class TaskDataFileTests(unittest.TestCase):
                 # Exact fields prevent undocumented data and accidental gold solutions.
                 self.assertEqual(set(task), TASK_FIELDS)
                 # Text metadata must be non-empty to produce an actionable repair prompt.
-                for field in ("id", "family", "difficulty", "specification", "function_name", "buggy_code"):
+                text_fields = (
+                    "id",
+                    "family",
+                    "difficulty",
+                    "specification",
+                    "function_name",
+                    "buggy_code",
+                )
+                for field in text_fields:
                     # Both type and content are checked instead of relying on truthiness alone.
                     self.assertIsInstance(task[field], str)
                     # Whitespace-only metadata is not useful to training or evaluation.
