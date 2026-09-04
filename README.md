@@ -2,7 +2,7 @@
 
 MiniBug-RL is a complete, measured recipe for adding test-driven reinforcement learning to a tiny code LLM on the recorded 8 GB test system. It fine-tunes the 0.49B-parameter [Qwen2.5-Coder-0.5B-Instruct](https://huggingface.co/Qwen/Qwen2.5-Coder-0.5B-Instruct/blob/ea3f2471cf1b1f0db85067f1ef93848e38e88c25/README.md) with 100 steps of TRL GRPO and a rank-16 LoRA adapter. The policy repairs one short Python function, receives scalar rewards derived from hidden unit tests, and never receives hidden expected values in its prompts.
 
-The resulting public model is [BurnyCoder/qwen2.5-coder-0.5b-swe-rl](https://huggingface.co/BurnyCoder/qwen2.5-coder-0.5b-swe-rl), pinned at Hub commit [`5b6e22a4c6c01bec95d10e93a0fc78666eb9c543`](https://huggingface.co/BurnyCoder/qwen2.5-coder-0.5b-swe-rl/commit/5b6e22a4c6c01bec95d10e93a0fc78666eb9c543). Its repository root is a directly loadable merged model; `adapter/` contains the separate PEFT artifact.
+The resulting public model is [BurnyCoder/qwen2.5-coder-0.5b-swe-rl](https://huggingface.co/BurnyCoder/qwen2.5-coder-0.5b-swe-rl). Its weights and results were first published at immutable commit [`5b6e22a4…`](https://huggingface.co/BurnyCoder/qwen2.5-coder-0.5b-swe-rl/commit/5b6e22a4c6c01bec95d10e93a0fc78666eb9c543); the current fact-corrected card is at [`8dc6fa7d…`](https://huggingface.co/BurnyCoder/qwen2.5-coder-0.5b-swe-rl/commit/8dc6fa7df8a09e157e3a5be1ec17b5d8b8aa4f43). The [documentation audit](reports/evidence/documentation-audit.json) confirms that only `README.md` changed between them. The repository root is a directly loadable merged model; `adapter/` contains the separate PEFT artifact.
 
 ## Methodology and data flow
 
@@ -92,7 +92,7 @@ import json
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 model_id = "BurnyCoder/qwen2.5-coder-0.5b-swe-rl"
-revision = "5b6e22a4c6c01bec95d10e93a0fc78666eb9c543"
+revision = "8dc6fa7df8a09e157e3a5be1ec17b5d8b8aa4f43"
 tokenizer = AutoTokenizer.from_pretrained(model_id, revision=revision)
 model = AutoModelForCausalLM.from_pretrained(
     model_id,
@@ -146,4 +146,4 @@ The implementation follows versioned primary references: [TRL 1.12 GRPOTrainer](
 - `reports/`: canonical evidence and chronological experiment reports.
 - `paper/` and `output/pdf/`: source and compiled experiment paper.
 
-This repository’s [LICENSE](LICENSE) and the immutable [result card](https://huggingface.co/BurnyCoder/qwen2.5-coder-0.5b-swe-rl/blob/5b6e22a4c6c01bec95d10e93a0fc78666eb9c543/README.md) identify the code and resulting model as Apache-2.0. The pinned [Qwen card](https://huggingface.co/Qwen/Qwen2.5-Coder-0.5B-Instruct/blob/ea3f2471cf1b1f0db85067f1ef93848e38e88c25/README.md) identifies the base as Apache-2.0, while the pinned [HumanEvalPack card](https://huggingface.co/datasets/bigcode/humanevalpack/blob/9a41762f73a8cb23bb5811b73d5aab164efcf378/README.md) identifies the dataset as MIT.
+This repository’s [LICENSE](LICENSE) and the immutable [corrected result card](https://huggingface.co/BurnyCoder/qwen2.5-coder-0.5b-swe-rl/blob/8dc6fa7df8a09e157e3a5be1ec17b5d8b8aa4f43/README.md) identify the code and resulting model as Apache-2.0. The pinned [Qwen card](https://huggingface.co/Qwen/Qwen2.5-Coder-0.5B-Instruct/blob/ea3f2471cf1b1f0db85067f1ef93848e38e88c25/README.md) identifies the base as Apache-2.0, while the pinned [HumanEvalPack card](https://huggingface.co/datasets/bigcode/humanevalpack/blob/9a41762f73a8cb23bb5811b73d5aab164efcf378/README.md) identifies the dataset as MIT.

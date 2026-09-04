@@ -2,12 +2,13 @@
 
 This is the command-level path from a fresh checkout to a real 0.49B-parameter
 Python-repair model. The already completed result is
-[`BurnyCoder/qwen2.5-coder-0.5b-swe-rl`](https://huggingface.co/BurnyCoder/qwen2.5-coder-0.5b-swe-rl/tree/5b6e22a4c6c01bec95d10e93a0fc78666eb9c543),
-pinned to Hub commit `5b6e22a4c6c01bec95d10e93a0fc78666eb9c543`. It contains a directly
-loadable merged model at the repository root and the selected LoRA adapter under
-`adapter/`. The publication phase downloaded that exact Hub commit into a fresh local
-directory and completed a greedy generation from it, as recorded in the checked
-[verification evidence](../reports/evidence/verification.json).
+[`BurnyCoder/qwen2.5-coder-0.5b-swe-rl`](https://huggingface.co/BurnyCoder/qwen2.5-coder-0.5b-swe-rl/tree/8dc6fa7df8a09e157e3a5be1ec17b5d8b8aa4f43),
+pinned here to corrected-card Hub commit `8dc6fa7df8a09e157e3a5be1ec17b5d8b8aa4f43`.
+It contains a directly loadable merged model at the repository root and the selected
+LoRA adapter under `adapter/`. The original publication phase re-downloaded result commit
+`5b6e22a4…`; the later [documentation audit](../reports/evidence/documentation-audit.json)
+re-downloaded the corrected-card commit, proved that all 16 non-README files were
+byte-identical, and completed a greedy generation from it.
 
 This guide owns commands and operator checkpoints. The experimental choices and reward
 are explained in [methodology.md](methodology.md), the isolation boundary in
@@ -327,7 +328,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 # This immutable repository revision names the concrete resulting model, not a moving tag.
 MODEL_ID = "BurnyCoder/qwen2.5-coder-0.5b-swe-rl"
 # Pinning the upload commit makes every Hub file selection immutable.
-MODEL_REVISION = "5b6e22a4c6c01bec95d10e93a0fc78666eb9c543"
+MODEL_REVISION = "8dc6fa7df8a09e157e3a5be1ec17b5d8b8aa4f43"
 # Remote custom code is disabled because this is a standard Transformers Qwen model.
 tokenizer = AutoTokenizer.from_pretrained(
     MODEL_ID,

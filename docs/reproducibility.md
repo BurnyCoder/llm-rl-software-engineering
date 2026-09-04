@@ -38,12 +38,17 @@ and PyTorch documents the broader nondeterminism boundary in its official
 | BigCode protocol reference | `bigcode-evaluation-harness@8fc5bae6479c4fbbb28c3f8b644f6a15b3f3b5bd` |
 | Prepared Docker image ID | `sha256:a869cd1dffb8c87afad1bb1302106cb9f5cb580641c7391bb73f4ab077f140d9` |
 | Result model repository | `BurnyCoder/qwen2.5-coder-0.5b-swe-rl` |
-| Result Hub commit | `5b6e22a4c6c01bec95d10e93a0fc78666eb9c543` |
+| Original result Hub commit | `5b6e22a4c6c01bec95d10e93a0fc78666eb9c543` |
+| Corrected-card Hub commit | `8dc6fa7df8a09e157e3a5be1ec17b5d8b8aa4f43` |
 
 The source commit is public at
 [`7027bc55…`](https://github.com/BurnyCoder/llm-rl-software-engineering/commit/7027bc55baecc00fad51cbe2b8f030dca2c91c1e).
 The result is browsable at the immutable
 [`5b6e22a…` model tree](https://huggingface.co/BurnyCoder/qwen2.5-coder-0.5b-swe-rl/tree/5b6e22a4c6c01bec95d10e93a0fc78666eb9c543).
+That commit remains the original experiment artifact identity. A later README-only
+correction was merged at [`8dc6fa7d…`](https://huggingface.co/BurnyCoder/qwen2.5-coder-0.5b-swe-rl/tree/8dc6fa7df8a09e157e3a5be1ec17b5d8b8aa4f43); the checked
+[documentation audit](../reports/evidence/documentation-audit.json) records the exact
+file-set comparison and successful inference without rewriting the original run record.
 
 The state identity hashes `RunConfig.public_dict()` as compact, key-sorted UTF-8 JSON;
 hashes the curriculum and manifest as raw file bytes; and records `git rev-parse HEAD`

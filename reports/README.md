@@ -13,7 +13,7 @@ The authoritative layers are:
 3. [`evidence/task-scores.json`](evidence/task-scores.json), which records every internal paired greedy score and a compact lossless representation of every external binary score.
 4. The experiment narratives, which interpret rather than replace the machine-readable evidence.
 
-The resulting model is [`BurnyCoder/qwen2.5-coder-0.5b-swe-rl`](https://huggingface.co/BurnyCoder/qwen2.5-coder-0.5b-swe-rl) at immutable revision [`5b6e22a4c6c01bec95d10e93a0fc78666eb9c543`](https://huggingface.co/BurnyCoder/qwen2.5-coder-0.5b-swe-rl/tree/5b6e22a4c6c01bec95d10e93a0fc78666eb9c543). The code used for the authoritative completed experiment was merged on GitHub as [`7027bc55baecc00fad51cbe2b8f030dca2c91c1e`](https://github.com/BurnyCoder/llm-rl-software-engineering/commit/7027bc55baecc00fad51cbe2b8f030dca2c91c1e) before the run began.
+The resulting model is [`BurnyCoder/qwen2.5-coder-0.5b-swe-rl`](https://huggingface.co/BurnyCoder/qwen2.5-coder-0.5b-swe-rl). Its experiment artifacts originated at immutable revision [`5b6e22a4…`](https://huggingface.co/BurnyCoder/qwen2.5-coder-0.5b-swe-rl/tree/5b6e22a4c6c01bec95d10e93a0fc78666eb9c543), and its README-only factual correction is at [`8dc6fa7d…`](https://huggingface.co/BurnyCoder/qwen2.5-coder-0.5b-swe-rl/tree/8dc6fa7df8a09e157e3a5be1ec17b5d8b8aa4f43). The code used for the authoritative completed experiment was merged on GitHub as [`7027bc55baecc00fad51cbe2b8f030dca2c91c1e`](https://github.com/BurnyCoder/llm-rl-software-engineering/commit/7027bc55baecc00fad51cbe2b8f030dca2c91c1e) before the run began.
 
 ## Experiment index
 
@@ -30,6 +30,7 @@ The resulting model is [`BurnyCoder/qwen2.5-coder-0.5b-swe-rl`](https://huggingf
 - [`task-scores.json`](evidence/task-scores.json): task pairing, internal score maps, exact changes, external passed/timeout sets, and paired intervals.
 - [`resolved-config.json`](evidence/resolved-config.json): byte-identical copy of the completed run's resolved configuration; `run-summary.json` records its file and canonical hashes.
 - [`verification.json`](evidence/verification.json): independently executed empirical checks plus an explicit record that its original documentation certification is superseded and its original PDF check is historical.
+- [`documentation-audit.json`](evidence/documentation-audit.json): current source/link checks, complete test pass, corrected PDF identity, Hugging Face card-only correction, exact file comparison, and post-correction inference.
 
 ## Result in one paragraph
 
@@ -37,7 +38,7 @@ The selected 100-step, rank-16 LoRA adapter trained 8,798,208 parameters—1.749
 
 ## Verification boundary
 
-The aggregate values and paired intervals were recomputed independently from candidate records, task key/order integrity was checked, raw artifact hashes were captured, and the published snapshot was re-downloaded for generation. A later post-publication check byte-compared both Safetensors files; that check was not part of the original publication gate. [`verification.json`](evidence/verification.json) preserves the 74-test repository run, static checks, exact public-model inference examples, and the historical eight-page paper build while marking its incomplete documentation check as superseded.
+The aggregate values and paired intervals were recomputed independently from candidate records, task key/order integrity was checked, raw artifact hashes were captured, and the published snapshot was re-downloaded for generation. A later post-publication check byte-compared both Safetensors files; that check was not part of the original publication gate. [`verification.json`](evidence/verification.json) preserves the 74-test repository run, static checks, exact public-model inference examples, and the historical eight-page paper build while marking its incomplete documentation check as superseded. The non-destructive follow-up is recorded separately in [`documentation-audit.json`](evidence/documentation-audit.json).
 
 To validate this report bundle after cloning, first parse the committed JSON:
 
