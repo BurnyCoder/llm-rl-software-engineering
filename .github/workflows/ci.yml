@@ -1,0 +1,59 @@
+# Global context: verify the lightweight core without downloading CUDA wheels in CI.
+# Sources: https://docs.astral.sh/uv/guides/integration/github/
+# Source: https://docs.github.com/actions/security-guides/security-hardening-for-github-actions
+name: core-ci
+
+# Pull requests and main updates must satisfy the same deterministic core checks.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Read-only repository access is sufficient for checkout and all local tests.
+permissions:
+  contents: read
+
+jobs:
+  core:
+    # GitHub's Linux runner includes the Docker daemon used by the real sandbox test.
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      # Pin third-party actions by immutable commit to reduce supply-chain drift.
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # The official action installs the exact project uv release and Python version.
+      - name: Install uv and Python
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: 0.11.27
+          python-version: "3.12"
+          enable-cache: true
+      # Lock validation resolves metadata but does not install multi-gigabyte CUDA wheels.
+      - name: Check dependency lock
+        run: uv lock --check
+      # Ruff is isolated through uvx and can inspect all files without runtime packages.
+      - name: Lint source and tests
+        run: uvx --from ruff==0.16.3 ruff check .
+      # These modules use only Python, pytest, and repository code.
+      - name: Run deterministic core tests
+        env:
+          PYTHONPATH: src
+        run: >-
+          uvx --from pytest==9.1.1 pytest -q
+          tests/test_config.py
+          tests/test_logging.py
+          tests/test_metrics.py
+          tests/test_parser.py
+          tests/test_reward.py
+          tests/test_task_data_file.py
+          tests/test_tasks_and_prompts.py
+      # Build the same immutable non-root image used by local reward scoring.
+      - name: Build sandbox image
+        run: docker build --tag minibug-rl-sandbox:local sandbox
+      # Opt in to the real disposable-container tests after the image is available.
+      - name: Run Docker integration tests
+        env:
+          MINIBUG_RUN_DOCKER_TESTS: "1"
+          PYTHONPATH: src
+        run: uvx --from pytest==9.1.1 pytest -q tests/test_sandbox.py

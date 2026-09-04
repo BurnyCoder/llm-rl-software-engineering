@@ -1,0 +1,1143 @@
+[
+  {
+    "id": "train_clamp_001",
+    "split": "train",
+    "family": "boundary",
+    "difficulty": "easy",
+    "specification": "Return value limited to the inclusive interval [low, high]. Assume low is not greater than high.",
+    "function_name": "clamp_value",
+    "buggy_code": "def clamp_value(value, low, high):\n    return min(low, max(value, high))",
+    "public_tests": [
+      {"args": [5, 0, 10], "kwargs": {}, "expected": 5},
+      {"args": [-3, 0, 10], "kwargs": {}, "expected": 0}
+    ],
+    "hidden_tests": [
+      {"args": [14, 0, 10], "kwargs": {}, "expected": 10},
+      {"args": [0, 0, 10], "kwargs": {}, "expected": 0},
+      {"args": [10, 0, 10], "kwargs": {}, "expected": 10},
+      {"args": [-2, -5, -1], "kwargs": {}, "expected": -2}
+    ]
+  },
+  {
+    "id": "train_common_021",
+    "split": "train",
+    "family": "set_operation",
+    "difficulty": "easy",
+    "specification": "Return the sorted distinct values that occur in both input lists.",
+    "function_name": "common_items",
+    "buggy_code": "def common_items(left, right):\n    return sorted(set(left) | set(right))",
+    "public_tests": [
+      {"args": [[3, 1, 2], [2, 4, 3]], "kwargs": {}, "expected": [2, 3]},
+      {"args": [[1], [2]], "kwargs": {}, "expected": []}
+    ],
+    "hidden_tests": [
+      {"args": [[], [1]], "kwargs": {}, "expected": []},
+      {"args": [[2, 2, 3], [2, 2]], "kwargs": {}, "expected": [2]},
+      {"args": [[-1, 0, 4], [4, -1]], "kwargs": {}, "expected": [-1, 4]},
+      {"args": [[5, 6], [5, 6]], "kwargs": {}, "expected": [5, 6]}
+    ]
+  },
+  {
+    "id": "train_unique_order_022",
+    "split": "train",
+    "family": "deduplication",
+    "difficulty": "easy",
+    "specification": "Return the first occurrence of each distinct value while preserving original order.",
+    "function_name": "unique_in_order",
+    "buggy_code": "def unique_in_order(values):\n    return sorted(set(values))",
+    "public_tests": [
+      {"args": [[3, 1, 3, 2]], "kwargs": {}, "expected": [3, 1, 2]},
+      {"args": [["b", "a", "b"]], "kwargs": {}, "expected": ["b", "a"]}
+    ],
+    "hidden_tests": [
+      {"args": [[]], "kwargs": {}, "expected": []},
+      {"args": [[1, 1, 1]], "kwargs": {}, "expected": [1]},
+      {"args": [[0, -1, 0, 2, -1]], "kwargs": {}, "expected": [0, -1, 2]},
+      {"args": [[true, false, true]], "kwargs": {}, "expected": [true, false]}
+    ]
+  },
+  {
+    "id": "train_chunks_023",
+    "split": "train",
+    "family": "stepping",
+    "difficulty": "medium",
+    "specification": "Split values into consecutive lists of at most size items. Assume size is a positive integer.",
+    "function_name": "chunk_values",
+    "buggy_code": "def chunk_values(values, size):\n    return [values[index:index + size] for index in range(0, len(values), size + 1)]",
+    "public_tests": [
+      {"args": [[1, 2, 3, 4, 5], 2], "kwargs": {}, "expected": [[1, 2], [3, 4], [5]]},
+      {"args": [[], 3], "kwargs": {}, "expected": []}
+    ],
+    "hidden_tests": [
+      {"args": [[1, 2, 3], 1], "kwargs": {}, "expected": [[1], [2], [3]]},
+      {"args": [[1, 2], 5], "kwargs": {}, "expected": [[1, 2]]},
+      {"args": [["a", "b", "c", "d"], 3], "kwargs": {}, "expected": [["a", "b", "c"], ["d"]]},
+      {"args": [[0, 1, 2, 3, 4, 5], 2], "kwargs": {}, "expected": [[0, 1], [2, 3], [4, 5]]}
+    ]
+  },
+  {
+    "id": "train_word_lengths_024",
+    "split": "train",
+    "family": "off_by_one",
+    "difficulty": "easy",
+    "specification": "Return a list containing the length of every word in order.",
+    "function_name": "word_lengths",
+    "buggy_code": "def word_lengths(words):\n    return [len(word) for word in words[:-1]]",
+    "public_tests": [
+      {"args": [["cat", "elephant"]], "kwargs": {}, "expected": [3, 8]},
+      {"args": [[""]], "kwargs": {}, "expected": [0]}
+    ],
+    "hidden_tests": [
+      {"args": [[]], "kwargs": {}, "expected": []},
+      {"args": [["a", "bb", "ccc"]], "kwargs": {}, "expected": [1, 2, 3]},
+      {"args": [["space here", "x"]], "kwargs": {}, "expected": [10, 1]},
+      {"args": [["same", "size"]], "kwargs": {}, "expected": [4, 4]}
+    ]
+  },
+  {
+    "id": "train_merge_maps_025",
+    "split": "train",
+    "family": "precedence",
+    "difficulty": "easy",
+    "specification": "Return a new dictionary containing both inputs, with values from second winning when a key occurs in both. Do not mutate either input.",
+    "function_name": "merge_mappings",
+    "buggy_code": "def merge_mappings(first, second):\n    merged = dict(second)\n    merged.update(first)\n    return merged",
+    "public_tests": [
+      {"args": [{"a": 1, "x": 2}, {"x": 9, "b": 3}], "kwargs": {}, "expected": {"a": 1, "x": 9, "b": 3}},
+      {"args": [{}, {"k": 4}], "kwargs": {}, "expected": {"k": 4}}
+    ],
+    "hidden_tests": [
+      {"args": [{"same": 1}, {"same": 2}], "kwargs": {}, "expected": {"same": 2}},
+      {"args": [{"left": true}, {}], "kwargs": {}, "expected": {"left": true}},
+      {"args": [{"a": 0}, {"b": 0}], "kwargs": {}, "expected": {"a": 0, "b": 0}},
+      {"args": [{"n": null}, {"n": 5}], "kwargs": {}, "expected": {"n": 5}}
+    ]
+  },
+  {
+    "id": "train_running_total_026",
+    "split": "train",
+    "family": "accumulation",
+    "difficulty": "easy",
+    "specification": "Return cumulative sums: each output item is the sum of the input through that position.",
+    "function_name": "running_totals",
+    "buggy_code": "def running_totals(values):\n    result = []\n    total = 0\n    for value in values:\n        total += value\n        result.append(value)\n    return result",
+    "public_tests": [
+      {"args": [[1, 2, 3]], "kwargs": {}, "expected": [1, 3, 6]},
+      {"args": [[]], "kwargs": {}, "expected": []}
+    ],
+    "hidden_tests": [
+      {"args": [[5]], "kwargs": {}, "expected": [5]},
+      {"args": [[2, -1, 4]], "kwargs": {}, "expected": [2, 1, 5]},
+      {"args": [[0, 0]], "kwargs": {}, "expected": [0, 0]},
+      {"args": [[-3, -2]], "kwargs": {}, "expected": [-3, -5]}
+    ]
+  },
+  {
+    "id": "train_second_largest_027",
+    "split": "train",
+    "family": "ranking",
+    "difficulty": "medium",
+    "specification": "Return the second-largest distinct numeric value, or null when fewer than two distinct values exist.",
+    "function_name": "second_largest_distinct",
+    "buggy_code": "def second_largest_distinct(values):\n    distinct = sorted(set(values))\n    if not distinct:\n        return None\n    return distinct[-1]",
+    "public_tests": [
+      {"args": [[4, 2, 4, 3]], "kwargs": {}, "expected": 3},
+      {"args": [[7]], "kwargs": {}, "expected": null}
+    ],
+    "hidden_tests": [
+      {"args": [[1, 2]], "kwargs": {}, "expected": 1},
+      {"args": [[5, 5]], "kwargs": {}, "expected": null},
+      {"args": [[-1, -4, -2]], "kwargs": {}, "expected": -2},
+      {"args": [[]], "kwargs": {}, "expected": null}
+    ]
+  },
+  {
+    "id": "validation_dedupe_runs_041",
+    "split": "validation",
+    "family": "deduplication",
+    "difficulty": "medium",
+    "specification": "Remove only adjacent duplicate values, preserving later repeats that occur after a different value.",
+    "function_name": "dedupe_consecutive",
+    "buggy_code": "def dedupe_consecutive(values):\n    return list(dict.fromkeys(values))",
+    "public_tests": [
+      {"args": [[1, 1, 2, 1]], "kwargs": {}, "expected": [1, 2, 1]},
+      {"args": [[]], "kwargs": {}, "expected": []}
+    ],
+    "hidden_tests": [
+      {"args": [["a", "a", "b", "b"]], "kwargs": {}, "expected": ["a", "b"]},
+      {"args": [[3, 3, 3]], "kwargs": {}, "expected": [3]},
+      {"args": [[1, 2, 1, 2]], "kwargs": {}, "expected": [1, 2, 1, 2]},
+      {"args": [[true, true, false, true]], "kwargs": {}, "expected": [true, false, true]}
+    ]
+  },
+  {
+    "id": "validation_transpose_042",
+    "split": "validation",
+    "family": "matrix_indexing",
+    "difficulty": "medium",
+    "specification": "Return the transpose of a rectangular matrix as new row lists. An empty matrix returns an empty list.",
+    "function_name": "transpose_matrix",
+    "buggy_code": "def transpose_matrix(matrix):\n    return [row[:] for row in matrix]",
+    "public_tests": [
+      {"args": [[[1, 2], [3, 4]]], "kwargs": {}, "expected": [[1, 3], [2, 4]]},
+      {"args": [[]], "kwargs": {}, "expected": []}
+    ],
+    "hidden_tests": [
+      {"args": [[[1, 2, 3]]], "kwargs": {}, "expected": [[1], [2], [3]]},
+      {"args": [[[1], [2], [3]]], "kwargs": {}, "expected": [[1, 2, 3]]},
+      {"args": [[["a", "b"], ["c", "d"], ["e", "f"]]], "kwargs": {}, "expected": [["a", "c", "e"], ["b", "d", "f"]]},
+      {"args": [[[0]]], "kwargs": {}, "expected": [[0]]}
+    ]
+  },
+  {
+    "id": "validation_dot_043",
+    "split": "validation",
+    "family": "wrong_operator",
+    "difficulty": "easy",
+    "specification": "Return the dot product of equal-length numeric lists left and right.",
+    "function_name": "dot_product",
+    "buggy_code": "def dot_product(left, right):\n    return sum(a - b for a, b in zip(left, right))",
+    "public_tests": [
+      {"args": [[1, 2, 3], [4, 5, 6]], "kwargs": {}, "expected": 32},
+      {"args": [[], []], "kwargs": {}, "expected": 0}
+    ],
+    "hidden_tests": [
+      {"args": [[2], [3]], "kwargs": {}, "expected": 6},
+      {"args": [[-1, 2], [4, -3]], "kwargs": {}, "expected": -10},
+      {"args": [[0, 5], [9, 0]], "kwargs": {}, "expected": 0},
+      {"args": [[1.5, 2.0], [2.0, 3.0]], "kwargs": {}, "expected": 9.0}
+    ]
+  },
+  {
+    "id": "validation_brackets_044",
+    "split": "validation",
+    "family": "state_tracking",
+    "difficulty": "medium",
+    "specification": "Return true when (), [], and {} brackets are correctly matched and nested. Input contains only bracket characters.",
+    "function_name": "valid_brackets",
+    "buggy_code": "def valid_brackets(text):\n    return text.count('(') == text.count(')') and text.count('[') == text.count(']') and text.count('{') == text.count('}')",
+    "public_tests": [
+      {"args": ["([)]"], "kwargs": {}, "expected": false},
+      {"args": ["{[()]}"], "kwargs": {}, "expected": true}
+    ],
+    "hidden_tests": [
+      {"args": [""], "kwargs": {}, "expected": true},
+      {"args": ["(()"], "kwargs": {}, "expected": false},
+      {"args": ["]["], "kwargs": {}, "expected": false},
+      {"args": ["()[]{}"], "kwargs": {}, "expected": true}
+    ]
+  },
+  {
+    "id": "validation_merge_sorted_045",
+    "split": "validation",
+    "family": "sequence_merge",
+    "difficulty": "easy",
+    "specification": "Merge two individually sorted numeric lists into one sorted list, retaining duplicates.",
+    "function_name": "merge_sorted",
+    "buggy_code": "def merge_sorted(left, right):\n    return left + right",
+    "public_tests": [
+      {"args": [[1, 4], [2, 3]], "kwargs": {}, "expected": [1, 2, 3, 4]},
+      {"args": [[], [5]], "kwargs": {}, "expected": [5]}
+    ],
+    "hidden_tests": [
+      {"args": [[1, 2], [1, 3]], "kwargs": {}, "expected": [1, 1, 2, 3]},
+      {"args": [[-3, 0], [-2, 4]], "kwargs": {}, "expected": [-3, -2, 0, 4]},
+      {"args": [[7], []], "kwargs": {}, "expected": [7]},
+      {"args": [[1, 5, 9], [2, 6]], "kwargs": {}, "expected": [1, 2, 5, 6, 9]}
+    ]
+  },
+  {
+    "id": "validation_mode_046",
+    "split": "validation",
+    "family": "tie_breaking",
+    "difficulty": "medium",
+    "specification": "Return the most frequent integer in a non-empty list; when frequencies tie, return the smaller integer.",
+    "function_name": "mode_smallest_tie",
+    "buggy_code": "def mode_smallest_tie(values):\n    return max(set(values), key=lambda value: (values.count(value), value))",
+    "public_tests": [
+      {"args": [[1, 1, 2, 2]], "kwargs": {}, "expected": 1},
+      {"args": [[4, 4, 2]], "kwargs": {}, "expected": 4}
+    ],
+    "hidden_tests": [
+      {"args": [[7]], "kwargs": {}, "expected": 7},
+      {"args": [[3, 2, 3, 2, 5]], "kwargs": {}, "expected": 2},
+      {"args": [[-1, -2]], "kwargs": {}, "expected": -2},
+      {"args": [[0, 1, 1, 0, 2]], "kwargs": {}, "expected": 0}
+    ]
+  },
+  {
+    "id": "validation_month_days_047",
+    "split": "validation",
+    "family": "calendar_boundary",
+    "difficulty": "medium",
+    "specification": "Return the number of days in a Gregorian calendar month for year and month (1 through 12), including leap-year February.",
+    "function_name": "days_in_month",
+    "buggy_code": "def days_in_month(year, month):\n    if month == 2:\n        return 28\n    if month in (4, 6, 9, 11):\n        return 30\n    return 31",
+    "public_tests": [
+      {"args": [2024, 2], "kwargs": {}, "expected": 29},
+      {"args": [2023, 4], "kwargs": {}, "expected": 30}
+    ],
+    "hidden_tests": [
+      {"args": [1900, 2], "kwargs": {}, "expected": 28},
+      {"args": [2000, 2], "kwargs": {}, "expected": 29},
+      {"args": [2023, 1], "kwargs": {}, "expected": 31},
+      {"args": [2023, 11], "kwargs": {}, "expected": 30}
+    ]
+  },
+  {
+    "id": "validation_normalize_048",
+    "split": "validation",
+    "family": "normalization",
+    "difficulty": "medium",
+    "specification": "Return each positive score divided by the total so the new list sums to 1. Assume the input is non-empty with a positive total.",
+    "function_name": "normalize_scores",
+    "buggy_code": "def normalize_scores(scores):\n    scale = max(scores)\n    return [score / scale for score in scores]",
+    "public_tests": [
+      {"args": [[1, 1]], "kwargs": {}, "expected": [0.5, 0.5]},
+      {"args": [[1, 2, 3]], "kwargs": {}, "expected": [0.16666666666666666, 0.3333333333333333, 0.5]}
+    ],
+    "hidden_tests": [
+      {"args": [[5]], "kwargs": {}, "expected": [1.0]},
+      {"args": [[2, 6]], "kwargs": {}, "expected": [0.25, 0.75]},
+      {"args": [[0, 4]], "kwargs": {}, "expected": [0.0, 1.0]},
+      {"args": [[3, 3, 6]], "kwargs": {}, "expected": [0.25, 0.25, 0.5]}
+    ]
+  },
+  {
+    "id": "test_hamming_049",
+    "split": "test",
+    "family": "length_handling",
+    "difficulty": "medium",
+    "specification": "Return the Hamming-style distance between two strings: mismatched aligned characters plus the absolute length difference.",
+    "function_name": "string_distance",
+    "buggy_code": "def string_distance(left, right):\n    return sum(a != b for a, b in zip(left, right))",
+    "public_tests": [
+      {"args": ["abc", "ax"], "kwargs": {}, "expected": 2},
+      {"args": ["same", "same"], "kwargs": {}, "expected": 0}
+    ],
+    "hidden_tests": [
+      {"args": ["", "cat"], "kwargs": {}, "expected": 3},
+      {"args": ["abc", "xyz"], "kwargs": {}, "expected": 3},
+      {"args": ["a", "ab"], "kwargs": {}, "expected": 1},
+      {"args": ["kitten", "sitting"], "kwargs": {}, "expected": 3}
+    ]
+  },
+  {
+    "id": "test_run_length_050",
+    "split": "test",
+    "family": "state_tracking",
+    "difficulty": "medium",
+    "specification": "Encode consecutive runs as [value, count] lists in encounter order. Equal values in separate runs stay separate.",
+    "function_name": "encode_runs",
+    "buggy_code": "def encode_runs(values):\n    return [[value, values.count(value)] for value in dict.fromkeys(values)]",
+    "public_tests": [
+      {"args": [[1, 1, 2, 1]], "kwargs": {}, "expected": [[1, 2], [2, 1], [1, 1]]},
+      {"args": [[]], "kwargs": {}, "expected": []}
+    ],
+    "hidden_tests": [
+      {"args": [["a", "a", "a"]], "kwargs": {}, "expected": [["a", 3]]},
+      {"args": [[1, 2, 3]], "kwargs": {}, "expected": [[1, 1], [2, 1], [3, 1]]},
+      {"args": [[true, false, false, true]], "kwargs": {}, "expected": [[true, 1], [false, 2], [true, 1]]},
+      {"args": [[0, 0, 1, 1, 0, 0]], "kwargs": {}, "expected": [[0, 2], [1, 2], [0, 2]]}
+    ]
+  },
+  {
+    "id": "test_parse_bool_051",
+    "split": "test",
+    "family": "string_parsing",
+    "difficulty": "easy",
+    "specification": "Return true for trimmed case-insensitive 'true', 'yes', or '1'; return false for every other string.",
+    "function_name": "parse_boolean",
+    "buggy_code": "def parse_boolean(text):\n    return bool(text)",
+    "public_tests": [
+      {"args": ["false"], "kwargs": {}, "expected": false},
+      {"args": [" YES "], "kwargs": {}, "expected": true}
+    ],
+    "hidden_tests": [
+      {"args": ["true"], "kwargs": {}, "expected": true},
+      {"args": ["1"], "kwargs": {}, "expected": true},
+      {"args": ["no"], "kwargs": {}, "expected": false},
+      {"args": [""], "kwargs": {}, "expected": false},
+      {"args": ["TrUe"], "kwargs": {}, "expected": true}
+    ]
+  },
+  {
+    "id": "test_nearest_multiple_052",
+    "split": "test",
+    "family": "rounding",
+    "difficulty": "medium",
+    "specification": "Return the multiple of positive step nearest to integer value. Inputs avoid exact ties.",
+    "function_name": "nearest_multiple",
+    "buggy_code": "def nearest_multiple(value, step):\n    return (value // step) * step",
+    "public_tests": [
+      {"args": [8, 5], "kwargs": {}, "expected": 10},
+      {"args": [6, 5], "kwargs": {}, "expected": 5}
+    ],
+    "hidden_tests": [
+      {"args": [14, 4], "kwargs": {}, "expected": 16},
+      {"args": [13, 4], "kwargs": {}, "expected": 12},
+      {"args": [-7, 5], "kwargs": {}, "expected": -5},
+      {"args": [0, 3], "kwargs": {}, "expected": 0}
+    ]
+  },
+  {
+    "id": "test_alternating_053",
+    "split": "test",
+    "family": "accumulation",
+    "difficulty": "easy",
+    "specification": "Return values[0] - values[1] + values[2] - values[3] and so on. Empty input returns zero.",
+    "function_name": "alternating_sum",
+    "buggy_code": "def alternating_sum(values):\n    return sum(values)",
+    "public_tests": [
+      {"args": [[10, 3, 2]], "kwargs": {}, "expected": 9},
+      {"args": [[]], "kwargs": {}, "expected": 0}
+    ],
+    "hidden_tests": [
+      {"args": [[5]], "kwargs": {}, "expected": 5},
+      {"args": [[1, 1, 1, 1]], "kwargs": {}, "expected": 0},
+      {"args": [[-2, 3, 4]], "kwargs": {}, "expected": -1},
+      {"args": [[8, 2, 6, 1, 3]], "kwargs": {}, "expected": 14}
+    ]
+  },
+  {
+    "id": "test_wrap_index_054",
+    "split": "test",
+    "family": "wraparound",
+    "difficulty": "easy",
+    "specification": "Return the item at index wrapped modulo the length of a non-empty list, supporting positive and negative indices.",
+    "function_name": "wrapped_item",
+    "buggy_code": "def wrapped_item(values, index):\n    bounded = min(max(index, 0), len(values) - 1)\n    return values[bounded]",
+    "public_tests": [
+      {"args": [["a", "b", "c"], 4], "kwargs": {}, "expected": "b"},
+      {"args": [[10, 20, 30], -1], "kwargs": {}, "expected": 30}
+    ],
+    "hidden_tests": [
+      {"args": [[1, 2, 3], 0], "kwargs": {}, "expected": 1},
+      {"args": [[1, 2, 3], 6], "kwargs": {}, "expected": 1},
+      {"args": [[1, 2, 3], -4], "kwargs": {}, "expected": 3},
+      {"args": [[true], 99], "kwargs": {}, "expected": true}
+    ]
+  },
+  {
+    "id": "test_pair_sums_055",
+    "split": "test",
+    "family": "pair_search",
+    "difficulty": "medium",
+    "specification": "Return [left, right] value pairs for every index pair i < j whose values sum to target, ordered by increasing i then j.",
+    "function_name": "pairs_with_sum",
+    "buggy_code": "def pairs_with_sum(values, target):\n    result = []\n    for index in range(len(values) - 1):\n        if values[index] + values[index + 1] == target:\n            result.append([values[index], values[index + 1]])\n    return result",
+    "public_tests": [
+      {"args": [[1, 4, 2, 3], 5], "kwargs": {}, "expected": [[1, 4], [2, 3]]},
+      {"args": [[1, 2], 9], "kwargs": {}, "expected": []}
+    ],
+    "hidden_tests": [
+      {"args": [[1, 2, 3], 4], "kwargs": {}, "expected": [[1, 3]]},
+      {"args": [[2, 2, 2], 4], "kwargs": {}, "expected": [[2, 2], [2, 2], [2, 2]]},
+      {"args": [[-1, 0, 1], 0], "kwargs": {}, "expected": [[-1, 1]]},
+      {"args": [[], 0], "kwargs": {}, "expected": []}
+    ]
+  },
+  {
+    "id": "test_temperature_056",
+    "split": "test",
+    "family": "numeric_operator",
+    "difficulty": "easy",
+    "specification": "Convert each Celsius value to Fahrenheit using c * 9 / 5 + 32, preserving input order.",
+    "function_name": "celsius_to_fahrenheit",
+    "buggy_code": "def celsius_to_fahrenheit(values):\n    return [value * 9 // 5 + 32 for value in values]",
+    "public_tests": [
+      {"args": [[1]], "kwargs": {}, "expected": [33.8]},
+      {"args": [[0, 100]], "kwargs": {}, "expected": [32.0, 212.0]}
+    ],
+    "hidden_tests": [
+      {"args": [[]], "kwargs": {}, "expected": []},
+      {"args": [[-40]], "kwargs": {}, "expected": [-40.0]},
+      {"args": [[10, 20]], "kwargs": {}, "expected": [50.0, 68.0]},
+      {"args": [[2.5]], "kwargs": {}, "expected": [36.5]}
+    ]
+  },
+  {
+    "id": "test_prefix_057",
+    "split": "test",
+    "family": "string_prefix",
+    "difficulty": "medium",
+    "specification": "Return the longest prefix shared by every string. Return an empty string for an empty list or when no character is shared.",
+    "function_name": "longest_common_prefix",
+    "buggy_code": "def longest_common_prefix(words):\n    if not words:\n        return ''\n    return words[0]",
+    "public_tests": [
+      {"args": [["flower", "flow", "flight"]], "kwargs": {}, "expected": "fl"},
+      {"args": [[]], "kwargs": {}, "expected": ""}
+    ],
+    "hidden_tests": [
+      {"args": [["dog", "race"]], "kwargs": {}, "expected": ""},
+      {"args": [["same"]], "kwargs": {}, "expected": "same"},
+      {"args": [["inter", "internet", "internal"]], "kwargs": {}, "expected": "inter"},
+      {"args": [["ab", "a", "abc"]], "kwargs": {}, "expected": "a"}
+    ]
+  },
+  {
+    "id": "test_checksum_058",
+    "split": "test",
+    "family": "missing_operation",
+    "difficulty": "easy",
+    "specification": "Return the sum of integer values reduced modulo positive modulus.",
+    "function_name": "checksum_modulo",
+    "buggy_code": "def checksum_modulo(values, modulus):\n    return sum(values)",
+    "public_tests": [
+      {"args": [[7, 8, 9], 10], "kwargs": {}, "expected": 4},
+      {"args": [[], 5], "kwargs": {}, "expected": 0}
+    ],
+    "hidden_tests": [
+      {"args": [[1, 2, 3], 7], "kwargs": {}, "expected": 6},
+      {"args": [[10], 10], "kwargs": {}, "expected": 0},
+      {"args": [[-1, 2], 5], "kwargs": {}, "expected": 1},
+      {"args": [[100, 200], 13], "kwargs": {}, "expected": 1}
+    ]
+  },
+  {
+    "id": "test_trace_059",
+    "split": "test",
+    "family": "matrix_indexing",
+    "difficulty": "easy",
+    "specification": "Return the sum of the main diagonal of a square numeric matrix. An empty matrix has trace zero.",
+    "function_name": "matrix_trace",
+    "buggy_code": "def matrix_trace(matrix):\n    return sum(sum(row) for row in matrix)",
+    "public_tests": [
+      {"args": [[[1, 2], [3, 4]]], "kwargs": {}, "expected": 5},
+      {"args": [[]], "kwargs": {}, "expected": 0}
+    ],
+    "hidden_tests": [
+      {"args": [[[7]]], "kwargs": {}, "expected": 7},
+      {"args": [[[1, 0, 0], [0, 2, 0], [0, 0, 3]]], "kwargs": {}, "expected": 6},
+      {"args": [[[0, 5], [-5, 0]]], "kwargs": {}, "expected": 0},
+      {"args": [[[-1, 2], [8, -3]]], "kwargs": {}, "expected": -4}
+    ]
+  },
+  {
+    "id": "test_initials_060",
+    "split": "test",
+    "family": "string_transform",
+    "difficulty": "easy",
+    "specification": "Return the uppercase first character of every whitespace-separated word joined without separators.",
+    "function_name": "initials",
+    "buggy_code": "def initials(name):\n    words = name.split()\n    if not words:\n        return ''\n    return words[0][0].upper()",
+    "public_tests": [
+      {"args": ["Ada Lovelace"], "kwargs": {}, "expected": "AL"},
+      {"args": ["single"], "kwargs": {}, "expected": "S"}
+    ],
+    "hidden_tests": [
+      {"args": [""], "kwargs": {}, "expected": ""},
+      {"args": ["  grace   brewster murray hopper "], "kwargs": {}, "expected": "GBMH"},
+      {"args": ["a b c"], "kwargs": {}, "expected": "ABC"},
+      {"args": ["already Upper"], "kwargs": {}, "expected": "AU"}
+    ]
+  },
+  {
+    "id": "train_parentheses_028",
+    "split": "train",
+    "family": "state_tracking",
+    "difficulty": "medium",
+    "specification": "Return true when a string made only of '(' and ')' is balanced and no prefix closes more groups than it opens.",
+    "function_name": "balanced_parentheses",
+    "buggy_code": "def balanced_parentheses(text):\n    return text.count('(') == text.count(')')",
+    "public_tests": [
+      {"args": [")("], "kwargs": {}, "expected": false},
+      {"args": ["(())"], "kwargs": {}, "expected": true}
+    ],
+    "hidden_tests": [
+      {"args": [""], "kwargs": {}, "expected": true},
+      {"args": ["(()"], "kwargs": {}, "expected": false},
+      {"args": ["()()"], "kwargs": {}, "expected": true},
+      {"args": ["())("], "kwargs": {}, "expected": false}
+    ]
+  },
+  {
+    "id": "train_title_words_029",
+    "split": "train",
+    "family": "string_transform",
+    "difficulty": "easy",
+    "specification": "Capitalize the first character of each whitespace-separated word and lowercase its remaining characters; join words with one space.",
+    "function_name": "title_words",
+    "buggy_code": "def title_words(text):\n    return text.upper()",
+    "public_tests": [
+      {"args": ["hello WORLD"], "kwargs": {}, "expected": "Hello World"},
+      {"args": ["one"], "kwargs": {}, "expected": "One"}
+    ],
+    "hidden_tests": [
+      {"args": [""], "kwargs": {}, "expected": ""},
+      {"args": ["mIXed caSE"], "kwargs": {}, "expected": "Mixed Case"},
+      {"args": ["  extra   gaps "], "kwargs": {}, "expected": "Extra Gaps"},
+      {"args": ["123abc x"], "kwargs": {}, "expected": "123abc X"}
+    ]
+  },
+  {
+    "id": "train_nonnegative_030",
+    "split": "train",
+    "family": "boundary",
+    "difficulty": "easy",
+    "specification": "Return values greater than or equal to zero in their original order.",
+    "function_name": "keep_nonnegative",
+    "buggy_code": "def keep_nonnegative(values):\n    return [value for value in values if value > 0]",
+    "public_tests": [
+      {"args": [[-1, 0, 2]], "kwargs": {}, "expected": [0, 2]},
+      {"args": [[-3, -2]], "kwargs": {}, "expected": []}
+    ],
+    "hidden_tests": [
+      {"args": [[0]], "kwargs": {}, "expected": [0]},
+      {"args": [[]], "kwargs": {}, "expected": []},
+      {"args": [[4, 0, -1, 5]], "kwargs": {}, "expected": [4, 0, 5]},
+      {"args": [[0.0, -0.5, 1.5]], "kwargs": {}, "expected": [0.0, 1.5]}
+    ]
+  },
+  {
+    "id": "train_digit_sum_031",
+    "split": "train",
+    "family": "off_by_one",
+    "difficulty": "easy",
+    "specification": "Return the sum of the decimal digits of integer n, ignoring its sign.",
+    "function_name": "digit_sum",
+    "buggy_code": "def digit_sum(n):\n    digits = str(abs(n))\n    return sum(int(digit) for digit in digits[:-1])",
+    "public_tests": [
+      {"args": [123], "kwargs": {}, "expected": 6},
+      {"args": [-90], "kwargs": {}, "expected": 9}
+    ],
+    "hidden_tests": [
+      {"args": [0], "kwargs": {}, "expected": 0},
+      {"args": [7], "kwargs": {}, "expected": 7},
+      {"args": [1001], "kwargs": {}, "expected": 2},
+      {"args": [-555], "kwargs": {}, "expected": 15}
+    ]
+  },
+  {
+    "id": "train_word_count_032",
+    "split": "train",
+    "family": "whitespace",
+    "difficulty": "easy",
+    "specification": "Return the number of non-empty tokens separated by arbitrary whitespace.",
+    "function_name": "count_words",
+    "buggy_code": "def count_words(text):\n    return len(text.split(' '))",
+    "public_tests": [
+      {"args": ["one  two"], "kwargs": {}, "expected": 2},
+      {"args": [""], "kwargs": {}, "expected": 0}
+    ],
+    "hidden_tests": [
+      {"args": [" single "], "kwargs": {}, "expected": 1},
+      {"args": ["a\tb\nc"], "kwargs": {}, "expected": 3},
+      {"args": ["   "], "kwargs": {}, "expected": 0},
+      {"args": ["four words live right here"], "kwargs": {}, "expected": 5}
+    ]
+  },
+  {
+    "id": "train_min_max_033",
+    "split": "train",
+    "family": "return_order",
+    "difficulty": "easy",
+    "specification": "Return a two-item list containing the minimum followed by the maximum of a non-empty numeric list.",
+    "function_name": "min_then_max",
+    "buggy_code": "def min_then_max(values):\n    return [max(values), min(values)]",
+    "public_tests": [
+      {"args": [[3, 1, 9]], "kwargs": {}, "expected": [1, 9]},
+      {"args": [[5]], "kwargs": {}, "expected": [5, 5]}
+    ],
+    "hidden_tests": [
+      {"args": [[-4, -2, -7]], "kwargs": {}, "expected": [-7, -2]},
+      {"args": [[0, 8]], "kwargs": {}, "expected": [0, 8]},
+      {"args": [[2.5, 1.5]], "kwargs": {}, "expected": [1.5, 2.5]},
+      {"args": [[4, 4, 4]], "kwargs": {}, "expected": [4, 4]}
+    ]
+  },
+  {
+    "id": "train_fibonacci_034",
+    "split": "train",
+    "family": "sequence_index",
+    "difficulty": "medium",
+    "specification": "Return Fibonacci number F(n) for non-negative n, with F(0)=0 and F(1)=1.",
+    "function_name": "fibonacci",
+    "buggy_code": "def fibonacci(n):\n    current, following = 0, 1\n    for _ in range(n):\n        current, following = following, current + following\n    return following",
+    "public_tests": [
+      {"args": [0], "kwargs": {}, "expected": 0},
+      {"args": [5], "kwargs": {}, "expected": 5}
+    ],
+    "hidden_tests": [
+      {"args": [1], "kwargs": {}, "expected": 1},
+      {"args": [2], "kwargs": {}, "expected": 1},
+      {"args": [7], "kwargs": {}, "expected": 13},
+      {"args": [10], "kwargs": {}, "expected": 55}
+    ]
+  },
+  {
+    "id": "train_intersection_035",
+    "split": "train",
+    "family": "set_operation",
+    "difficulty": "medium",
+    "specification": "Return the sorted distinct integers present in both input lists.",
+    "function_name": "sorted_intersection",
+    "buggy_code": "def sorted_intersection(first, second):\n    return [value for value in first if value in second]",
+    "public_tests": [
+      {"args": [[3, 1, 3, 2], [3, 2]], "kwargs": {}, "expected": [2, 3]},
+      {"args": [[1], [4]], "kwargs": {}, "expected": []}
+    ],
+    "hidden_tests": [
+      {"args": [[], []], "kwargs": {}, "expected": []},
+      {"args": [[5, 5], [5]], "kwargs": {}, "expected": [5]},
+      {"args": [[-1, 2, 0], [0, -1]], "kwargs": {}, "expected": [-1, 0]},
+      {"args": [[9, 8], [8, 9]], "kwargs": {}, "expected": [8, 9]}
+    ]
+  },
+  {
+    "id": "train_triangle_036",
+    "split": "train",
+    "family": "branch_order",
+    "difficulty": "easy",
+    "specification": "Classify three positive side lengths as 'equilateral', 'isosceles', or 'scalene'. Assume they form a valid triangle.",
+    "function_name": "triangle_kind",
+    "buggy_code": "def triangle_kind(a, b, c):\n    if a == b or b == c or a == c:\n        return 'isosceles'\n    if a == b == c:\n        return 'equilateral'\n    return 'scalene'",
+    "public_tests": [
+      {"args": [3, 3, 3], "kwargs": {}, "expected": "equilateral"},
+      {"args": [3, 3, 4], "kwargs": {}, "expected": "isosceles"}
+    ],
+    "hidden_tests": [
+      {"args": [2, 4, 3], "kwargs": {}, "expected": "scalene"},
+      {"args": [5, 7, 5], "kwargs": {}, "expected": "isosceles"},
+      {"args": [8, 6, 6], "kwargs": {}, "expected": "isosceles"},
+      {"args": [1, 1, 1], "kwargs": {}, "expected": "equilateral"}
+    ]
+  },
+  {
+    "id": "validation_leap_037",
+    "split": "validation",
+    "family": "boolean_logic",
+    "difficulty": "medium",
+    "specification": "Return true for Gregorian leap years: divisible by 4, except century years unless divisible by 400.",
+    "function_name": "is_leap_year",
+    "buggy_code": "def is_leap_year(year):\n    return year % 4 == 0",
+    "public_tests": [
+      {"args": [1900], "kwargs": {}, "expected": false},
+      {"args": [2024], "kwargs": {}, "expected": true}
+    ],
+    "hidden_tests": [
+      {"args": [2000], "kwargs": {}, "expected": true},
+      {"args": [2023], "kwargs": {}, "expected": false},
+      {"args": [2100], "kwargs": {}, "expected": false},
+      {"args": [2400], "kwargs": {}, "expected": true}
+    ]
+  },
+  {
+    "id": "validation_shift_char_038",
+    "split": "validation",
+    "family": "wraparound",
+    "difficulty": "easy",
+    "specification": "Shift one lowercase English letter forward by one, wrapping 'z' to 'a'.",
+    "function_name": "shift_lowercase_letter",
+    "buggy_code": "def shift_lowercase_letter(letter):\n    return chr(ord(letter) + 1)",
+    "public_tests": [
+      {"args": ["z"], "kwargs": {}, "expected": "a"},
+      {"args": ["b"], "kwargs": {}, "expected": "c"}
+    ],
+    "hidden_tests": [
+      {"args": ["a"], "kwargs": {}, "expected": "b"},
+      {"args": ["y"], "kwargs": {}, "expected": "z"},
+      {"args": ["m"], "kwargs": {}, "expected": "n"},
+      {"args": ["x"], "kwargs": {}, "expected": "y"}
+    ]
+  },
+  {
+    "id": "validation_binary_039",
+    "split": "validation",
+    "family": "wrong_literal",
+    "difficulty": "easy",
+    "specification": "Return the number of '1' characters in a string containing only binary digits.",
+    "function_name": "count_binary_ones",
+    "buggy_code": "def count_binary_ones(bits):\n    return bits.count('0')",
+    "public_tests": [
+      {"args": ["1011"], "kwargs": {}, "expected": 3},
+      {"args": ["000"], "kwargs": {}, "expected": 0}
+    ],
+    "hidden_tests": [
+      {"args": [""], "kwargs": {}, "expected": 0},
+      {"args": ["11111"], "kwargs": {}, "expected": 5},
+      {"args": ["10"], "kwargs": {}, "expected": 1},
+      {"args": ["001001"], "kwargs": {}, "expected": 2}
+    ]
+  },
+  {
+    "id": "validation_longest_word_040",
+    "split": "validation",
+    "family": "tie_breaking",
+    "difficulty": "medium",
+    "specification": "Return the first longest string in a non-empty list; ties must keep the earliest item.",
+    "function_name": "first_longest_word",
+    "buggy_code": "def first_longest_word(words):\n    best = words[0]\n    for word in words[1:]:\n        if len(word) >= len(best):\n            best = word\n    return best",
+    "public_tests": [
+      {"args": [["cat", "dog"]], "kwargs": {}, "expected": "cat"},
+      {"args": [["a", "long", "mid"]], "kwargs": {}, "expected": "long"}
+    ],
+    "hidden_tests": [
+      {"args": [["solo"]], "kwargs": {}, "expected": "solo"},
+      {"args": [["aa", "b", "cc"]], "kwargs": {}, "expected": "aa"},
+      {"args": [["", "x"]], "kwargs": {}, "expected": "x"},
+      {"args": [["first", "tiny", "third"]], "kwargs": {}, "expected": "first"}
+    ]
+  },
+  {
+    "id": "train_even_002",
+    "split": "train",
+    "family": "boolean_logic",
+    "difficulty": "easy",
+    "specification": "Return true exactly when the integer n is even.",
+    "function_name": "is_even",
+    "buggy_code": "def is_even(n):\n    return n % 2 == 1",
+    "public_tests": [
+      {"args": [4], "kwargs": {}, "expected": true},
+      {"args": [7], "kwargs": {}, "expected": false}
+    ],
+    "hidden_tests": [
+      {"args": [0], "kwargs": {}, "expected": true},
+      {"args": [-2], "kwargs": {}, "expected": true},
+      {"args": [-3], "kwargs": {}, "expected": false},
+      {"args": [1024], "kwargs": {}, "expected": true}
+    ]
+  },
+  {
+    "id": "train_inclusive_sum_003",
+    "split": "train",
+    "family": "off_by_one",
+    "difficulty": "easy",
+    "specification": "Return the sum of every integer from start through stop, including both endpoints. Assume start is not greater than stop.",
+    "function_name": "inclusive_sum",
+    "buggy_code": "def inclusive_sum(start, stop):\n    return sum(range(start, stop))",
+    "public_tests": [
+      {"args": [1, 3], "kwargs": {}, "expected": 6},
+      {"args": [5, 5], "kwargs": {}, "expected": 5}
+    ],
+    "hidden_tests": [
+      {"args": [-2, 2], "kwargs": {}, "expected": 0},
+      {"args": [0, 4], "kwargs": {}, "expected": 10},
+      {"args": [-4, -2], "kwargs": {}, "expected": -9},
+      {"args": [10, 12], "kwargs": {}, "expected": 33}
+    ]
+  },
+  {
+    "id": "train_vowels_004",
+    "split": "train",
+    "family": "string_case",
+    "difficulty": "easy",
+    "specification": "Return the number of English vowels in text, treating uppercase and lowercase letters alike.",
+    "function_name": "count_vowels",
+    "buggy_code": "def count_vowels(text):\n    return sum(ch in 'aeiou' for ch in text)",
+    "public_tests": [
+      {"args": ["Apple"], "kwargs": {}, "expected": 2},
+      {"args": ["rhythm"], "kwargs": {}, "expected": 0}
+    ],
+    "hidden_tests": [
+      {"args": ["AEIOU"], "kwargs": {}, "expected": 5},
+      {"args": ["MiniBug RL"], "kwargs": {}, "expected": 3},
+      {"args": [""], "kwargs": {}, "expected": 0},
+      {"args": ["Queue"], "kwargs": {}, "expected": 4}
+    ]
+  },
+  {
+    "id": "train_max_three_005",
+    "split": "train",
+    "family": "wrong_operator",
+    "difficulty": "easy",
+    "specification": "Return the greatest of the three numeric arguments.",
+    "function_name": "max_of_three",
+    "buggy_code": "def max_of_three(a, b, c):\n    return min(a, b, c)",
+    "public_tests": [
+      {"args": [2, 9, 4], "kwargs": {}, "expected": 9},
+      {"args": [-5, -2, -8], "kwargs": {}, "expected": -2}
+    ],
+    "hidden_tests": [
+      {"args": [7, 7, 1], "kwargs": {}, "expected": 7},
+      {"args": [0, 0, 0], "kwargs": {}, "expected": 0},
+      {"args": [12, 3, 11], "kwargs": {}, "expected": 12},
+      {"args": [-1, 4, 4], "kwargs": {}, "expected": 4}
+    ]
+  },
+  {
+    "id": "train_reverse_words_006",
+    "split": "train",
+    "family": "sequence_order",
+    "difficulty": "easy",
+    "specification": "Return the whitespace-separated words in sentence in reverse word order, joined by one space.",
+    "function_name": "reverse_words",
+    "buggy_code": "def reverse_words(sentence):\n    return sentence[::-1]",
+    "public_tests": [
+      {"args": ["red green blue"], "kwargs": {}, "expected": "blue green red"},
+      {"args": ["solo"], "kwargs": {}, "expected": "solo"}
+    ],
+    "hidden_tests": [
+      {"args": ["one two"], "kwargs": {}, "expected": "two one"},
+      {"args": ["  spaced   words "], "kwargs": {}, "expected": "words spaced"},
+      {"args": [""], "kwargs": {}, "expected": ""},
+      {"args": ["a b c d"], "kwargs": {}, "expected": "d c b a"}
+    ]
+  },
+  {
+    "id": "train_factorial_007",
+    "split": "train",
+    "family": "off_by_one",
+    "difficulty": "easy",
+    "specification": "Return n factorial for a non-negative integer n; zero factorial is 1.",
+    "function_name": "factorial",
+    "buggy_code": "def factorial(n):\n    result = 1\n    for value in range(1, n):\n        result *= value\n    return result",
+    "public_tests": [
+      {"args": [4], "kwargs": {}, "expected": 24},
+      {"args": [0], "kwargs": {}, "expected": 1}
+    ],
+    "hidden_tests": [
+      {"args": [1], "kwargs": {}, "expected": 1},
+      {"args": [2], "kwargs": {}, "expected": 2},
+      {"args": [5], "kwargs": {}, "expected": 120},
+      {"args": [7], "kwargs": {}, "expected": 5040}
+    ]
+  },
+  {
+    "id": "train_fizzbuzz_008",
+    "split": "train",
+    "family": "branch_order",
+    "difficulty": "easy",
+    "specification": "Return 'FizzBuzz' when n is divisible by both 3 and 5, 'Fizz' for only 3, 'Buzz' for only 5, otherwise the decimal string of n.",
+    "function_name": "fizzbuzz_value",
+    "buggy_code": "def fizzbuzz_value(n):\n    if n % 3 == 0:\n        return 'Fizz'\n    if n % 5 == 0:\n        return 'Buzz'\n    if n % 15 == 0:\n        return 'FizzBuzz'\n    return str(n)",
+    "public_tests": [
+      {"args": [15], "kwargs": {}, "expected": "FizzBuzz"},
+      {"args": [9], "kwargs": {}, "expected": "Fizz"}
+    ],
+    "hidden_tests": [
+      {"args": [10], "kwargs": {}, "expected": "Buzz"},
+      {"args": [7], "kwargs": {}, "expected": "7"},
+      {"args": [30], "kwargs": {}, "expected": "FizzBuzz"},
+      {"args": [1], "kwargs": {}, "expected": "1"}
+    ]
+  },
+  {
+    "id": "train_safe_divide_009",
+    "split": "train",
+    "family": "numeric_operator",
+    "difficulty": "easy",
+    "specification": "Return numerator divided by denominator as normal Python division, or null when denominator is zero.",
+    "function_name": "safe_divide",
+    "buggy_code": "def safe_divide(numerator, denominator):\n    if denominator == 0:\n        return None\n    return numerator // denominator",
+    "public_tests": [
+      {"args": [7, 2], "kwargs": {}, "expected": 3.5},
+      {"args": [5, 0], "kwargs": {}, "expected": null}
+    ],
+    "hidden_tests": [
+      {"args": [8, 4], "kwargs": {}, "expected": 2.0},
+      {"args": [-3, 2], "kwargs": {}, "expected": -1.5},
+      {"args": [0, 6], "kwargs": {}, "expected": 0.0},
+      {"args": [9, -2], "kwargs": {}, "expected": -4.5}
+    ]
+  },
+  {
+    "id": "train_duplicate_010",
+    "split": "train",
+    "family": "boolean_logic",
+    "difficulty": "easy",
+    "specification": "Return true when values contains at least one duplicate item; otherwise return false.",
+    "function_name": "contains_duplicate",
+    "buggy_code": "def contains_duplicate(values):\n    return len(values) == len(set(values))",
+    "public_tests": [
+      {"args": [[1, 2, 1]], "kwargs": {}, "expected": true},
+      {"args": [[1, 2, 3]], "kwargs": {}, "expected": false}
+    ],
+    "hidden_tests": [
+      {"args": [[]], "kwargs": {}, "expected": false},
+      {"args": [[5, 5]], "kwargs": {}, "expected": true},
+      {"args": [[0, -1, 0]], "kwargs": {}, "expected": true},
+      {"args": [["a", "b", "c"]], "kwargs": {}, "expected": false}
+    ]
+  },
+  {
+    "id": "train_median_011",
+    "split": "train",
+    "family": "indexing",
+    "difficulty": "easy",
+    "specification": "Return the middle value of three numeric arguments.",
+    "function_name": "median_of_three",
+    "buggy_code": "def median_of_three(a, b, c):\n    return sorted([a, b, c])[0]",
+    "public_tests": [
+      {"args": [9, 2, 5], "kwargs": {}, "expected": 5},
+      {"args": [1, 1, 8], "kwargs": {}, "expected": 1}
+    ],
+    "hidden_tests": [
+      {"args": [-3, 0, -1], "kwargs": {}, "expected": -1},
+      {"args": [4, 7, 6], "kwargs": {}, "expected": 6},
+      {"args": [2, 9, 2], "kwargs": {}, "expected": 2},
+      {"args": [10, -10, 3], "kwargs": {}, "expected": 3}
+    ]
+  },
+  {
+    "id": "train_sum_positive_012",
+    "split": "train",
+    "family": "filter_condition",
+    "difficulty": "easy",
+    "specification": "Return the sum of values that are strictly greater than zero.",
+    "function_name": "sum_positive",
+    "buggy_code": "def sum_positive(values):\n    return sum(value for value in values if value < 0)",
+    "public_tests": [
+      {"args": [[-2, 3, 5]], "kwargs": {}, "expected": 8},
+      {"args": [[-4, -1]], "kwargs": {}, "expected": 0}
+    ],
+    "hidden_tests": [
+      {"args": [[0, 1, -1]], "kwargs": {}, "expected": 1},
+      {"args": [[]], "kwargs": {}, "expected": 0},
+      {"args": [[2, 2, 2]], "kwargs": {}, "expected": 6},
+      {"args": [[-8, 10, -3, 4]], "kwargs": {}, "expected": 14}
+    ]
+  },
+  {
+    "id": "train_last_item_013",
+    "split": "train",
+    "family": "indexing",
+    "difficulty": "easy",
+    "specification": "Return the final item of a non-empty list.",
+    "function_name": "last_item",
+    "buggy_code": "def last_item(values):\n    return values[0]",
+    "public_tests": [
+      {"args": [[3, 7, 9]], "kwargs": {}, "expected": 9},
+      {"args": [["only"]], "kwargs": {}, "expected": "only"}
+    ],
+    "hidden_tests": [
+      {"args": [[true, false]], "kwargs": {}, "expected": false},
+      {"args": [[-1, -2, -3]], "kwargs": {}, "expected": -3},
+      {"args": [[0, 4]], "kwargs": {}, "expected": 4},
+      {"args": [["a", "b", "c", "d"]], "kwargs": {}, "expected": "d"}
+    ]
+  },
+  {
+    "id": "train_abs_diff_014",
+    "split": "train",
+    "family": "numeric_operator",
+    "difficulty": "easy",
+    "specification": "Return the non-negative absolute difference between a and b.",
+    "function_name": "absolute_difference",
+    "buggy_code": "def absolute_difference(a, b):\n    return a - b",
+    "public_tests": [
+      {"args": [3, 8], "kwargs": {}, "expected": 5},
+      {"args": [10, 4], "kwargs": {}, "expected": 6}
+    ],
+    "hidden_tests": [
+      {"args": [-2, 5], "kwargs": {}, "expected": 7},
+      {"args": [0, 0], "kwargs": {}, "expected": 0},
+      {"args": [-7, -3], "kwargs": {}, "expected": 4},
+      {"args": [2.5, 1.0], "kwargs": {}, "expected": 1.5}
+    ]
+  },
+  {
+    "id": "train_all_nonempty_015",
+    "split": "train",
+    "family": "quantifier",
+    "difficulty": "easy",
+    "specification": "Return true when every string in values is non-empty. An empty input list returns true.",
+    "function_name": "all_nonempty",
+    "buggy_code": "def all_nonempty(values):\n    return any(value != '' for value in values)",
+    "public_tests": [
+      {"args": [["a", "", "b"]], "kwargs": {}, "expected": false},
+      {"args": [["red", "blue"]], "kwargs": {}, "expected": true}
+    ],
+    "hidden_tests": [
+      {"args": [[]], "kwargs": {}, "expected": true},
+      {"args": [[""]], "kwargs": {}, "expected": false},
+      {"args": [["0", "x"]], "kwargs": {}, "expected": true},
+      {"args": [["", ""]], "kwargs": {}, "expected": false}
+    ]
+  },
+  {
+    "id": "train_occurrences_016",
+    "split": "train",
+    "family": "equality",
+    "difficulty": "easy",
+    "specification": "Return how many list elements compare equal to target.",
+    "function_name": "count_occurrences",
+    "buggy_code": "def count_occurrences(values, target):\n    return sum(value is target for value in values)",
+    "public_tests": [
+      {"args": [[1000, 1000, 2], 1000], "kwargs": {}, "expected": 2},
+      {"args": [["a", "b", "a"], "a"], "kwargs": {}, "expected": 2}
+    ],
+    "hidden_tests": [
+      {"args": [[], 3], "kwargs": {}, "expected": 0},
+      {"args": [[1, 2, 3], 4], "kwargs": {}, "expected": 0},
+      {"args": [[0, 0, 0], 0], "kwargs": {}, "expected": 3},
+      {"args": [[true, false, true], true], "kwargs": {}, "expected": 2}
+    ]
+  },
+  {
+    "id": "train_flatten_017",
+    "split": "train",
+    "family": "nested_sequence",
+    "difficulty": "easy",
+    "specification": "Flatten a list of lists by exactly one level while preserving item order.",
+    "function_name": "flatten_once",
+    "buggy_code": "def flatten_once(groups):\n    result = []\n    for group in groups:\n        result.append(group)\n    return result",
+    "public_tests": [
+      {"args": [[[1, 2], [3]]], "kwargs": {}, "expected": [1, 2, 3]},
+      {"args": [[[], [4, 5]]], "kwargs": {}, "expected": [4, 5]}
+    ],
+    "hidden_tests": [
+      {"args": [[]], "kwargs": {}, "expected": []},
+      {"args": [[["a"], ["b", "c"]]], "kwargs": {}, "expected": ["a", "b", "c"]},
+      {"args": [[[0], [], [1]]], "kwargs": {}, "expected": [0, 1]},
+      {"args": [[[true, false]]], "kwargs": {}, "expected": [true, false]}
+    ]
+  },
+  {
+    "id": "train_palindrome_018",
+    "split": "train",
+    "family": "string_case",
+    "difficulty": "easy",
+    "specification": "Return true when text reads the same forward and backward after ignoring letter case. Other characters remain significant.",
+    "function_name": "is_casefold_palindrome",
+    "buggy_code": "def is_casefold_palindrome(text):\n    return text == text[::-1]",
+    "public_tests": [
+      {"args": ["Level"], "kwargs": {}, "expected": true},
+      {"args": ["Python"], "kwargs": {}, "expected": false}
+    ],
+    "hidden_tests": [
+      {"args": ["Aa"], "kwargs": {}, "expected": true},
+      {"args": [""], "kwargs": {}, "expected": true},
+      {"args": ["Rotor"], "kwargs": {}, "expected": true},
+      {"args": ["abca"], "kwargs": {}, "expected": false}
+    ]
+  },
+  {
+    "id": "train_gcd_019",
+    "split": "train",
+    "family": "loop_condition",
+    "difficulty": "medium",
+    "specification": "Return the greatest common divisor of two non-negative integers. When one argument is zero, return the other.",
+    "function_name": "greatest_common_divisor",
+    "buggy_code": "def greatest_common_divisor(a, b):\n    while b > 1:\n        a, b = b, a % b\n    return a",
+    "public_tests": [
+      {"args": [8, 3], "kwargs": {}, "expected": 1},
+      {"args": [18, 12], "kwargs": {}, "expected": 6}
+    ],
+    "hidden_tests": [
+      {"args": [7, 0], "kwargs": {}, "expected": 7},
+      {"args": [21, 14], "kwargs": {}, "expected": 7},
+      {"args": [100, 25], "kwargs": {}, "expected": 25},
+      {"args": [13, 5], "kwargs": {}, "expected": 1}
+    ]
+  },
+  {
+    "id": "train_rotate_020",
+    "split": "train",
+    "family": "sequence_order",
+    "difficulty": "easy",
+    "specification": "Return a new list rotated left by one position. Return an empty list for empty input.",
+    "function_name": "rotate_left_once",
+    "buggy_code": "def rotate_left_once(values):\n    if not values:\n        return []\n    return values[-1:] + values[:-1]",
+    "public_tests": [
+      {"args": [[1, 2, 3]], "kwargs": {}, "expected": [2, 3, 1]},
+      {"args": [[]], "kwargs": {}, "expected": []}
+    ],
+    "hidden_tests": [
+      {"args": [["a"]], "kwargs": {}, "expected": ["a"]},
+      {"args": [[true, false]], "kwargs": {}, "expected": [false, true]},
+      {"args": [[4, 5, 6, 7]], "kwargs": {}, "expected": [5, 6, 7, 4]},
+      {"args": [[0, 0, 1]], "kwargs": {}, "expected": [0, 1, 0]}
+    ]
+  }
+]
