@@ -7,10 +7,14 @@ Sources:
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+import json
+from collections.abc import Callable, Sequence
+from dataclasses import asdict
 from typing import Any
 
 from minibug_rl.parser import parse_candidate
+from minibug_rl.reward_cache import RewardCache
+from minibug_rl.run_logging import RunLogger
 from minibug_rl.schemas import CandidateExecutor, RewardBreakdown, TestCase
 
 
@@ -20,7 +24,7 @@ def _equal(actual: Any, expected: Any) -> bool:
     if isinstance(actual, bool) or isinstance(expected, bool):
         return type(actual) is type(expected) and actual == expected
     # JSON numbers from deterministic integer-focused tasks can use ordinary equality.
-    return actual == expected
+    return bool(actual == expected)
 
 
 def score_completion(
@@ -49,8 +53,12 @@ def score_completion(
     # Strip expected outputs before crossing the untrusted execution boundary.
     calls = [test.sandbox_call() for test in tests]
     execution = executor.execute(parsed.code, function_name, calls)
+    if execution.status == "infrastructure_error":
+        # A broken daemon, image, or runner invalidates evidence and stops the experiment.
+        detail = execution.error or "unknown sandbox error"
+        raise RuntimeError(f"Sandbox infrastructure failed: {detail}")
     if execution.status != "success":
-        # Infrastructure failures remain distinguishable but use the same bounded penalty.
+        # Candidate timeouts and runtime crashes receive the documented bounded penalty.
         return RewardBreakdown(
             structure_reward=0.1,
             runtime_penalty=-0.25,
@@ -83,3 +91,73 @@ def score_completion(
         passed=passed,
         total_cases=total_cases,
     )
+
+
+def _hidden_cases(encoded: str) -> tuple[TestCase, ...]:
+    """Decode the reward-only dataset column into typed host-side cases."""
+    # The dataset was validated before training, so malformed JSON is a fatal data error.
+    raw = json.loads(encoded)
+    if not isinstance(raw, list):
+        raise ValueError("hidden_tests_json must encode a list")
+    cases: list[TestCase] = []
+    for item in raw:
+        if not isinstance(item, dict) or set(item) != {"args", "kwargs", "expected"}:
+            raise ValueError("each hidden test must contain args, kwargs, and expected")
+        if not isinstance(item["args"], list) or not isinstance(item["kwargs"], dict):
+            raise ValueError("hidden test args/kwargs have invalid JSON shapes")
+        cases.append(TestCase(tuple(item["args"]), dict(item["kwargs"]), item["expected"]))
+    return tuple(cases)
+
+
+def build_grpo_reward(
+    executor: CandidateExecutor,
+    logger: RunLogger,
+    cache: RewardCache | None = None,
+) -> Callable[..., list[float | None]]:
+    """Adapt aligned TRL completion and dataset columns to the shared reward scorer."""
+    selected_cache = cache or RewardCache(logger.directory / "reward-cache.sqlite3")
+
+    def reward(
+        completions: list[Any],
+        task_id: list[str],
+        function_name: list[str],
+        hidden_tests_json: list[str],
+        prompts: list[Any] | None = None,
+        split: list[str] | None = None,
+        **_trainer_values: Any,
+    ) -> list[float | None]:
+        """Score every rollout and log its complete prompt, completion, and components."""
+        count = len(completions)
+        columns = (task_id, function_name, hidden_tests_json)
+        if any(len(column) != count for column in columns):
+            raise ValueError("TRL reward columns are not aligned with completions")
+        aligned_prompts = prompts if prompts is not None else ["<prompt unavailable>"] * count
+        aligned_splits = split if split is not None else ["train"] * count
+        if len(aligned_prompts) != count or len(aligned_splits) != count:
+            raise ValueError("TRL prompt/split columns are not aligned with completions")
+        rewards: list[float | None] = []
+        for index, completion in enumerate(completions):
+            breakdown, cache_hit = selected_cache.score(
+                task_id[index],
+                completion,
+                function_name[index],
+                _hidden_cases(hidden_tests_json[index]),
+                executor,
+            )
+            # Expected outputs are intentionally absent from the generation metadata.
+            metadata = asdict(breakdown)
+            metadata["reward"] = breakdown.total
+            metadata["cache_hit"] = cache_hit
+            logger.generation(
+                task_id=task_id[index],
+                split=aligned_splits[index],
+                prompt=aligned_prompts[index],
+                completion=completion,
+                metadata=metadata,
+            )
+            rewards.append(breakdown.total)
+        return rewards
+
+    # A stable function name gives TRL readable reward metric keys.
+    reward.__name__ = "hidden_unit_test_reward"
+    return reward

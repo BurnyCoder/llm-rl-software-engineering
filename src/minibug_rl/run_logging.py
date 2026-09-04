@@ -124,13 +124,22 @@ class RunLogger:
         csv_path = self.directory / "metrics.csv"
         with self._lock:
             print(line, file=self._metric_file, flush=True)
-            # CSV is a secondary human-friendly view; JSONL remains authoritative.
+            # Long-form CSV supports metric sets that evolve between training log events.
             needs_header = not csv_path.exists() or csv_path.stat().st_size == 0
             with csv_path.open("a", encoding="utf-8", newline="") as handle:
-                writer = csv.DictWriter(handle, fieldnames=list(record))
+                fieldnames = ["timestamp", "step", "metric", "value"]
+                writer = csv.DictWriter(handle, fieldnames=fieldnames)
                 if needs_header:
                     writer.writeheader()
-                writer.writerow(record)
+                for metric_name, metric_value in values.items():
+                    writer.writerow(
+                        {
+                            "timestamp": record["timestamp"],
+                            "step": step,
+                            "metric": metric_name,
+                            "value": metric_value,
+                        }
+                    )
 
     def write_json(self, name: str, value: Any) -> Path:
         """Atomically write one resolved configuration or result document."""

@@ -47,3 +47,35 @@ def test_paired_bootstrap_rejects_mismatched_task_sets() -> None:
     """Never present an apparently paired interval for different evaluation tasks."""
     with pytest.raises(ValueError, match="same task IDs"):
         paired_bootstrap_interval({"a": 0.0}, {"b": 1.0}, samples=100, seed=42)
+
+
+@pytest.mark.parametrize(
+    ("records", "message"),
+    [
+        ([], "at least one record"),
+        ([EvaluationRecord("a", "mystery", 0, 0.0, False, "success")], "mode"),
+        (
+            [
+                EvaluationRecord("a", "greedy", 0, 0.0, False, "success"),
+                EvaluationRecord("a", "sampled", 0, 0.0, False, "success"),
+                EvaluationRecord("a", "sampled", 0, 0.0, False, "success"),
+            ],
+            "indices",
+        ),
+        (
+            [
+                EvaluationRecord("a", "greedy", 0, 1.2, False, "success"),
+                EvaluationRecord("a", "sampled", 0, 0.0, False, "success"),
+                EvaluationRecord("a", "sampled", 1, 0.0, False, "success"),
+            ],
+            "hidden fractions",
+        ),
+    ],
+)
+def test_aggregate_records_rejects_malformed_evidence(
+    records: list[EvaluationRecord],
+    message: str,
+) -> None:
+    """Reject duplicate, incomplete, unknown, or numerically impossible records."""
+    with pytest.raises(ValueError, match=message):
+        aggregate_records(records, sampled_k=2)

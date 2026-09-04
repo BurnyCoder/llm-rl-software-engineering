@@ -33,20 +33,42 @@ class EvaluationRecord:
 
 def aggregate_records(records: list[EvaluationRecord], sampled_k: int) -> dict[str, float | int]:
     """Aggregate task-level greedy and observed sampled success metrics."""
+    if not records:
+        raise ValueError("Evaluation requires at least one record")
+    if sampled_k <= 0:
+        raise ValueError("Evaluation sampled_k must be positive")
+    if any(record.mode not in {"greedy", "sampled"} for record in records):
+        raise ValueError("Evaluation record mode must be greedy or sampled")
+    if any(not 0.0 <= record.hidden_fraction <= 1.0 for record in records):
+        raise ValueError("Evaluation hidden fractions must be within [0, 1]")
     # Materialize unique tasks once so all task-denominator metrics agree.
     task_ids = sorted({record.task_id for record in records})
     greedy = [record for record in records if record.mode == "greedy"]
     sampled = [record for record in records if record.mode == "sampled"]
-    if len(greedy) != len(task_ids):
+    greedy_by_task: dict[str, list[EvaluationRecord]] = defaultdict(list)
+    for record in greedy:
+        greedy_by_task[record.task_id].append(record)
+    if any(
+        len(greedy_by_task[task_id]) != 1
+        or greedy_by_task[task_id][0].sample_index != 0
+        for task_id in task_ids
+    ):
         raise ValueError("Evaluation requires exactly one greedy record per task")
     # Group sampled candidates so pass@k means at least one observed full repair per task.
     sampled_by_task: dict[str, list[EvaluationRecord]] = defaultdict(list)
     for record in sampled:
         sampled_by_task[record.task_id].append(record)
-    if any(len(sampled_by_task[task_id]) != sampled_k for task_id in task_ids):
-        raise ValueError(f"Evaluation requires exactly {sampled_k} sampled records per task")
-    all_records = records or []
-    denominator = len(all_records) or 1
+    expected_indices = set(range(sampled_k))
+    if any(
+        {record.sample_index for record in sampled_by_task[task_id]} != expected_indices
+        or len(sampled_by_task[task_id]) != sampled_k
+        for task_id in task_ids
+    ):
+        raise ValueError(
+            f"Evaluation sampled indices must be exactly 0 through {sampled_k - 1} per task"
+        )
+    all_records = records
+    denominator = len(all_records)
     statuses = ("invalid_structure", "timeout", "runtime_error", "policy_violation")
     summary: dict[str, float | int] = {
         "tasks": len(task_ids),
@@ -60,7 +82,8 @@ def aggregate_records(records: list[EvaluationRecord], sampled_k: int) -> dict[s
     }
     # Candidate-denominator failure rates reveal formatting or execution regressions.
     for status in statuses:
-        summary[f"{status}_rate"] = sum(record.status == status for record in all_records) / denominator
+        count = sum(record.status == status for record in all_records)
+        summary[f"{status}_rate"] = count / denominator
     return summary
 
 
